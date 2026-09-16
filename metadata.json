@@ -1,0 +1,6 @@
+{
+  "name": "WorkNext",
+  "description": "WorkNext — Empowering India’s Workforce through AI career guidance, verified resume engineering, and regional job discovery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 220" width="520" height="220" fill="none">
+  <defs>
+    <!-- Gradients for Hummingbird Wings & Body -->
+    <linearGradient id="wingGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E11D48"/>
+      <stop offset="40%" stop-color="#EA580C"/>
+      <stop offset="85%" stop-color="#FBBF24"/>
+    </linearGradient>
+    <linearGradient id="wingGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#BE185D"/>
+      <stop offset="50%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="60%" stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#0E7490"/>
+    </linearGradient>
+    <linearGradient id="bellyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="70%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#C2410C"/>
+    </linearGradient>
+    <linearGradient id="tailGrad" x1="0%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#E11D48"/>
+      <stop offset="35%" stop-color="#F97316"/>
+      <stop offset="75%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="jslFront" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF2E7E"/>
+      <stop offset="100%" stop-color="#C026D3"/>
+    </linearGradient>
+    <linearGradient id="jslBevel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Golden Stardust Arc & Sparkles -->
+  <g opacity="0.85">
+    <path d="M 20 80 Q 80 100 135 70 T 210 65" stroke="#FDE047" stroke-width="1.5" stroke-dasharray="3 4" fill="none"/>
+    <!-- Sparkle Stars -->
+    <path d="M 24 82 L 27 75 L 30 82 L 37 85 L 30 88 L 27 95 L 24 88 L 17 85 Z" fill="#FBBF24"/>
+    <path d="M 68 62 L 70 56 L 72 62 L 78 64 L 72 66 L 70 72 L 68 66 L 62 64 Z" fill="#FDE047"/>
+    <path d="M 120 40 L 122 34 L 124 40 L 130 42 L 124 44 L 122 50 L 120 44 L 114 42 Z" fill="#F59E0B"/>
+    <path d="M 165 72 L 167 67 L 169 72 L 174 74 L 169 76 L 167 81 L 165 76 L 160 74 Z" fill="#FDE047"/>
+    <path d="M 195 60 L 196 56 L 197 60 L 201 61 L 197 62 L 196 66 L 195 62 L 191 61 Z" fill="#FBBF24"/>
+    <circle cx="95" cy="80" r="1.5" fill="#FEF08A"/>
+    <circle cx="145" cy="55" r="1.5" fill="#FEF08A"/>
+    <circle cx="180" cy="68" r="1.5" fill="#FEF08A"/>
+  </g>
+
+  <!-- Hummingbird Vector Graphic -->
+  <g id="hummingbird" transform="translate(10, 5)">
+    <!-- Back Wing Feathers (Upper layer) -->
+    <g id="back-wing">
+      <path d="M 65 75 C 55 45 42 25 30 18 C 36 28 46 45 52 65 Z" fill="url(#wingGrad1)"/>
+      <path d="M 72 70 C 62 38 52 18 42 12 C 48 24 58 42 62 62 Z" fill="url(#wingGrad1)"/>
+      <path d="M 80 66 C 72 32 64 12 55 8 C 60 22 70 40 73 58 Z" fill="url(#wingGrad2)"/>
+      <path d="M 90 62 C 82 28 75 10 68 5 C 73 18 82 36 84 55 Z" fill="url(#wingGrad2)"/>
+      <path d="M 100 60 C 95 30 90 14 82 8 C 88 20 94 38 95 56 Z" fill="url(#wingGrad1)"/>
+      <path d="M 110 62 C 108 36 104 20 98 14 C 102 26 106 42 105 58 Z" fill="url(#wingGrad2)"/>
+      <path d="M 118 68 C 118 45 116 30 110 24 C 114 34 116 48 114 64 Z" fill="url(#wingGrad1)"/>
+    </g>
+
+    <!-- Tail Plumage -->
+    <g id="tail">
+      <path d="M 92 125 C 85 145 78 175 65 198 C 76 180 88 152 96 130 Z" fill="url(#tailGrad)"/>
+      <path d="M 96 128 C 92 152 86 182 78 205 C 88 185 98 158 102 132 Z" fill="url(#tailGrad)"/>
+      <path d="M 100 130 C 98 155 96 185 90 208 C 100 188 106 160 108 132 Z" fill="url(#tailGrad)"/>
+      <path d="M 104 128 C 105 152 108 178 105 198 C 110 178 112 152 110 128 Z" fill="#F97316"/>
+    </g>
+
+    <!-- Body & Head -->
+    <g id="body">
+      <!-- Orange / Amber Breast & Belly -->
+      <path d="M 110 95 C 105 115 112 130 130 130 C 145 130 148 115 142 98 C 132 88 118 85 110 95 Z" fill="url(#bellyGrad)"/>
+      <!-- Deep Blue Torso & Back -->
+      <path d="M 95 85 C 88 95 92 115 105 125 C 115 115 118 95 110 82 C 102 80 98 82 95 85 Z" fill="url(#bodyGrad)"/>
+      <!-- Blue-Cyan Crown & Throat -->
+      <path d="M 108 82 C 112 70 128 65 145 68 C 160 72 165 82 162 90 C 152 98 135 98 120 90 C 112 86 108 84 108 82 Z" fill="url(#bodyGrad)"/>
+      <!-- White facial flash -->
+      <ellipse cx="145" cy="78" rx="8" ry="5" fill="#FFFFFF" opacity="0.9"/>
+      <!-- Eye -->
+      <circle cx="148" cy="78" r="3.5" fill="#0F172A"/>
+      <circle cx="149.2" cy="76.8" r="1.2" fill="#FFFFFF"/>
+      <!-- Slender Beak -->
+      <path d="M 162 76 L 198 80 L 162 79 Z" fill="#1E293B"/>
+    </g>
+
+    <!-- Foreground Wing (Layered plumage) -->
+    <g id="front-wing">
+      <path d="M 100 80 C 85 65 68 55 50 48 C 60 60 75 75 90 85 Z" fill="#EA580C"/>
+      <path d="M 105 82 C 92 68 76 58 60 52 C 72 65 86 78 98 88 Z" fill="#E11D48"/>
+      <path d="M 112 85 C 100 72 85 64 72 60 C 84 72 96 84 106 92 Z" fill="#FBBF24"/>
+      <path d="M 118 88 C 108 78 95 72 82 68 C 94 78 104 88 114 96 Z" fill="#06B6D4"/>
+    </g>
+  </g>
+
+  <!-- Typography Block -->
+  <g transform="translate(245, 45)">
+    <!-- 3D JSL Letters -->
+    <!-- "J" -->
+    <!-- 3D Extrusions for J (Yellow/Amber) -->
+    <path d="M 28 50 L 38 42 L 56 42 L 46 50 Z" fill="#D97706"/>
+    <path d="M 46 50 L 56 42 L 56 68 L 46 76 Z" fill="#F59E0B"/>
+    <path d="M 46 76 L 56 68 C 56 86 38 98 22 98 L 12 106 C 32 106 56 90 56 68 Z" fill="#D97706"/>
+    <!-- J Front Face (Magenta / Coral Gradient) -->
+    <path d="M 18 50 L 46 50 L 46 76 C 46 86 38 92 26 92 C 16 92 8 86 6 78 L 18 75 C 19 79 21 81 26 81 C 31 81 34 78 34 74 L 34 60 L 18 60 Z" fill="url(#jslFront)"/>
+
+    <!-- "S" -->
+    <!-- S Extrusions -->
+    <path d="M 68 50 L 78 42 L 102 42 L 92 50 Z" fill="#D97706"/>
+    <path d="M 92 50 L 102 42 L 102 60 L 92 68 Z" fill="#F59E0B"/>
+    <path d="M 92 68 L 102 60 L 102 90 L 92 98 Z" fill="#D97706"/>
+    <!-- S Front Face -->
+    <path d="M 64 50 L 92 50 C 97 50 100 54 100 59 C 100 66 94 70 86 71 L 76 72 C 70 73 66 76 66 80 C 66 85 71 88 78 88 L 94 88 L 94 98 L 76 98 C 65 98 54 90 54 80 C 54 71 61 65 72 63 L 80 62 C 86 61 88 58 88 55 C 88 52 85 50 80 50 L 64 50 Z" fill="url(#jslFront)"/>
+
+    <!-- "L" -->
+    <!-- L Extrusions -->
+    <path d="M 112 50 L 122 42 L 134 42 L 124 50 Z" fill="#D97706"/>
+    <path d="M 124 50 L 134 42 L 134 88 L 158 88 L 148 98 L 124 98 Z" fill="#F59E0B"/>
+    <!-- L Front Face -->
+    <path d="M 112 50 L 124 50 L 124 88 L 148 88 L 148 98 L 112 98 Z" fill="url(#jslFront)"/>
+
+    <!-- "WORKS" in Bold Cyan / Teal Rounded Geometric Typography -->
+    <g transform="translate(0, 80)">
+      <!-- W -->
+      <path d="M 14 36 L 24 64 L 32 44 L 40 64 L 50 36 L 41 36 L 36 52 L 29 36 L 27 36 L 20 52 L 15 36 Z" fill="#0284C7"/>
+      <!-- O -->
+      <path d="M 72 35 C 60 35 52 44 52 56 C 52 68 60 77 72 77 C 84 77 92 68 92 56 C 92 44 84 35 72 35 Z M 72 43 C 79 43 83 49 83 56 C 83 63 79 69 72 69 C 65 69 61 63 61 56 C 61 49 65 43 72 43 Z" fill="#0284C7"/>
+      <!-- R -->
+      <path d="M 98 36 L 114 36 C 122 36 128 40 128 47 C 128 53 124 57 118 58 L 129 76 L 119 76 L 110 60 L 107 60 L 107 76 L 98 76 Z M 107 43 L 107 53 L 114 53 C 117 53 120 51 120 48 C 120 45 117 43 114 43 Z" fill="#0284C7"/>
+      <!-- K -->
+      <path d="M 134 36 L 143 36 L 143 51 L 156 36 L 168 36 L 151 54 L 169 76 L 158 76 L 143 57 L 143 76 L 134 76 Z" fill="#0284C7"/>
+      <!-- S -->
+      <path d="M 174 41 C 178 37 183 35 190 35 C 199 35 204 40 204 46 C 204 53 198 56 191 58 L 186 59 C 182 60 180 62 180 65 C 180 68 183 70 188 70 C 193 70 197 68 200 65 L 206 70 C 201 75 195 77 188 77 C 179 77 172 72 172 65 C 172 58 178 54 185 52 L 190 51 C 195 50 196 48 196 46 C 196 43 193 42 189 42 C 185 42 182 44 179 47 Z" fill="#0284C7"/>
+    </g>
+
+    <!-- Sanskrit Slogan: "विद्या परं बलमेतत् सर्वं ध्रुवं नित्यम्।" -->
+    <text x="22" y="180" font-family="'Noto Sans Devanagari', 'Mukta', 'Mangal', sans-serif" font-size="14.5" font-weight="600" letter-spacing="1" fill="#78716C">
+      विद्या परं बलमेतत् सर्वं ध्रुवं नित्यम्।
+    </text>
+  </g>
+</svg>
