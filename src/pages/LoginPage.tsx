@@ -4,6 +4,7 @@ import { MainLayout } from '../layouts/MainLayout';
 import { useApp } from '../context/AppContext';
 import { Sparkles, Mail, Lock, ArrowRight, CheckCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { WNMonogramIcon } from '../components/common/WNMonogramIcon';
 
 export const LoginPage: React.FC = () => {
   const { login } = useApp();
@@ -29,10 +30,8 @@ export const LoginPage: React.FC = () => {
     <MainLayout>
       <div className="py-16 sm:py-24 flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl p-8 space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0F766E] to-teal-600 text-white flex items-center justify-center mx-auto shadow-md shadow-teal-500/20">
-              <Sparkles className="w-6 h-6 fill-current" />
-            </div>
+          <div className="text-center space-y-3">
+            <WNMonogramIcon className="w-14 h-14 mx-auto" />
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white font-display">Welcome Back</h1>
             <p className="text-xs text-slate-500">Log in to track your career progress, resume, and applications</p>
           </div>

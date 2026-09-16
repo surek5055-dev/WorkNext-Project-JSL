@@ -55,7 +55,7 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
   const candidateEducation = user.extractedProfile?.education || [];
   const hasResumeAnalyzed = Boolean(user.hasAnalyzedResume && (candidateSkills.length > 0 || candidateRole));
 
-  // Compute real match scores and rank matching job listings
+  // Compute real match scores and rank matching job listings based on authentic candidate profile
   const baseJobs = initialJobs || jobs;
   const rankedJobs = useMemo(() => {
     if (baseJobs.length === 0) return [];
@@ -65,13 +65,14 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
 
     return baseJobs.map(job => {
       const reqs = job.requirements || [];
-      if (reqs.length === 0) {
-        return { ...job, matchScore: hasResumeAnalyzed ? 50 : (job.matchScore || 0), skillGaps: [] };
-      }
 
       if (!hasResumeAnalyzed && candidateSkills.length === 0 && !candidateRole) {
-        // No resume uploaded or analyzed yet: no fake match score
+        // No resume uploaded or analyzed yet: do not show fake match scores
         return { ...job, matchScore: 0, skillGaps: reqs };
+      }
+
+      if (reqs.length === 0) {
+        return { ...job, matchScore: hasResumeAnalyzed ? 60 : 0, skillGaps: [] };
       }
 
       let matchedCount = 0;
@@ -87,8 +88,8 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
         }
       });
 
-      // 70% weight on authentic required skills overlap
-      const skillScore = (matchedCount / reqs.length) * 70;
+      // 60% weight on authentic required skills overlap
+      const skillScore = (matchedCount / reqs.length) * 60;
 
       // 20% weight on target role alignment
       let roleScore = 0;
@@ -105,12 +106,25 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
         }
       }
 
-      // 10% weight on experience match
+      // 10% weight on experience fit
       let expScore = 10;
       if (job.experienceLevel === 'Senior' && candidateExp < 3) expScore = 4;
       if (job.experienceLevel === 'Executive' && candidateExp < 7) expScore = 2;
+      if (job.experienceLevel === 'Entry-Level' && candidateExp <= 2) expScore = 10;
 
-      const totalScore = Math.min(100, Math.max(10, Math.round(skillScore + roleScore + expScore)));
+      // 10% weight on education match
+      let eduScore = 5;
+      if (candidateEducation.length > 0) {
+        const eduFields = candidateEducation.map(e => `${e.degree || ''} ${e.field || ''}`.toLowerCase());
+        const jobDescLower = (job.description + ' ' + job.title + ' ' + reqs.join(' ')).toLowerCase();
+        const hasRelevantDegree = eduFields.some(f => 
+          f.includes('computer') || f.includes('engineer') || f.includes('science') || f.includes('tech') ||
+          jobDescLower.includes(f)
+        );
+        eduScore = hasRelevantDegree ? 10 : 7;
+      }
+
+      const totalScore = Math.min(100, Math.max(10, Math.round(skillScore + roleScore + expScore + eduScore)));
 
       return {
         ...job,
@@ -118,7 +132,7 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
         skillGaps: missingSkills,
       };
     }).sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
-  }, [baseJobs, candidateSkills, candidateRole, candidateExp, hasResumeAnalyzed]);
+  }, [baseJobs, candidateSkills, candidateRole, candidateExp, candidateEducation, hasResumeAnalyzed]);
 
   const handleReset = () => {
     setSearchQuery('');
@@ -426,10 +440,6 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
             </div>
           )}
         </AnimatePresence>
-      </div>
-    </DashboardLayout>
-  );
-};
       </div>
     </DashboardLayout>
   );

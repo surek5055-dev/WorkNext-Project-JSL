@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { WNMonogramIcon } from './WNMonogramIcon';
+import jslWorksLogo from '../../assets/images/WhatsApp_Image_2026-09-13_at_2.40.52_PM-removebg-preview.png';
 import { TrendingUp, Github, Twitter, Linkedin, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -26,10 +28,8 @@ export const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-16">
           {/* Brand Col */}
           <div className="lg:col-span-2 space-y-5">
-            <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#0F766E] text-white flex items-center justify-center shadow-md shadow-teal-900/20 border border-teal-500/30">
-                <TrendingUp className="w-5 h-5" />
-              </div>
+            <Link to="/" className="flex items-center gap-3 group">
+              <WNMonogramIcon className="w-10 h-10" />
               <div>
                 <span className="text-2xl font-black text-stone-900 dark:text-white tracking-tight font-display">WorkNext</span>
                 <span className="text-[10px] uppercase font-bold text-teal-700 dark:text-teal-400 tracking-widest block -mt-1 font-mono">
@@ -107,17 +107,15 @@ export const Footer: React.FC = () => {
 
         {/* JSL Works & Team Attribution */}
         <div id="footer-jsl-attribution" className="pt-10 pb-6 border-t border-stone-300 dark:border-stone-800/80 flex flex-col items-center justify-center text-center space-y-4">
-          <div className="p-4 sm:p-5 rounded-2xl bg-white shadow-xl inline-flex items-center justify-center border border-stone-200">
-            <img
-              id="team-project-logo"
-              src="/jsl-works-logo.png"
-              alt="JSL WORKS"
-              className="h-24 sm:h-28 w-auto max-w-[280px] sm:max-w-[340px] object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/assets/jsl-works-logo.png';
-              }}
-            />
-          </div>
+          <img
+            id="team-project-logo"
+            src={jslWorksLogo}
+            alt="JSL WORKS"
+            className="h-44 sm:h-56 md:h-64 w-auto max-w-[340px] sm:max-w-[440px] object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/WhatsApp_Image_2026-09-13_at_2.40.52_PM-removebg-preview.png';
+            }}
+          />
           <p id="team-project-attribution" className="text-sm sm:text-base font-medium tracking-wide text-stone-800 dark:text-stone-200 font-sans">
             Project done by the team <span className="text-teal-700 dark:text-teal-400 font-bold">The Bachelors</span>
           </p>

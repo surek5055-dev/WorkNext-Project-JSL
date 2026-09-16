@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../../context/AppContext';
 import { ProfileDropdown } from './ProfileDropdown';
+import { WNMonogramIcon } from './WNMonogramIcon';
 import {
   TrendingUp,
   Bell,
@@ -46,16 +47,14 @@ export const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20 gap-4">
           {/* Brand Logo */}
-          <Link to="/" id="brand-header-logo" className="flex items-center gap-2.5 sm:gap-3 shrink-0 group">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-[#0F766E] to-[#0D655E] text-white flex items-center justify-center shadow-md shadow-teal-900/15 group-hover:scale-105 transition-all duration-300 border border-teal-500/30">
-              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-100 stroke-[2.2]" />
-            </div>
+          <Link to="/" id="brand-header-logo" className="flex items-center gap-3 shrink-0 group">
+            <WNMonogramIcon className="w-10 h-10 sm:w-11 sm:h-11" />
             <div>
               <span className="text-xl sm:text-2xl font-black tracking-tight text-stone-900 dark:text-white font-display">
                 WorkNext
               </span>
               <span className="text-[10px] uppercase font-bold text-[#0F766E] dark:text-teal-400 tracking-widest block -mt-1 font-mono">
-                AI Intelligence
+                AI Workforce
               </span>
             </div>
           </Link>

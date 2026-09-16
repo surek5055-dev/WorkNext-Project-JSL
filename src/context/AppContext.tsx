@@ -396,17 +396,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAnalysisError(null);
   };
 
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const [jobs, setJobs] = useState<Job[]>(() => {
+    try {
+      const saved = localStorage.getItem('worknext_jobs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to read jobs from localStorage', e);
+    }
+    return mockJobs;
+  });
 
-  // Load real jobs from backend on initial mount
+  // Keep jobs synced in localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('worknext_jobs', JSON.stringify(jobs));
+    } catch (e) {
+      console.error('Failed to persist jobs to localStorage', e);
+    }
+  }, [jobs]);
+
+  // Load real jobs from backend on initial mount and sync
   useEffect(() => {
     const fetchBackendJobs = async () => {
       try {
         const res = await fetch('/api/jobs');
         if (res.ok) {
           const data = await res.json();
-          if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
-            setJobs(data.jobs);
+          if (data.success && Array.isArray(data.jobs)) {
+            if (data.jobs.length > 0) {
+              setJobs(data.jobs);
+            } else if (jobs.length > 0) {
+              // Sync local jobs up to the backend store
+              for (const j of jobs) {
+                await fetch('/api/jobs', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(j),
+                }).catch(() => {});
+              }
+            }
           }
         }
       } catch (err) {
