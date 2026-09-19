@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, MapPin, X, Sparkles } from 'lucide-react';
+import { Search, MapPin, X, Sparkles, Globe } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 interface JobFilterFormProps {
@@ -15,6 +15,13 @@ interface JobFilterFormProps {
   onRemoteToggle: (remote: boolean) => void;
   minMatchScore: number;
   onMatchScoreChange: (score: number) => void;
+  sourceFilter: 'all' | 'worknext' | 'adzuna';
+  onSourceFilterChange: (source: 'all' | 'worknext' | 'adzuna') => void;
+  counts?: {
+    all: number;
+    worknext: number;
+    adzuna: number;
+  };
   onReset: () => void;
 }
 
@@ -31,6 +38,9 @@ export const JobFilterForm: React.FC<JobFilterFormProps> = ({
   onRemoteToggle,
   minMatchScore,
   onMatchScoreChange,
+  sourceFilter,
+  onSourceFilterChange,
+  counts,
   onReset
 }) => {
   return (
@@ -78,8 +88,65 @@ export const JobFilterForm: React.FC<JobFilterFormProps> = ({
         </div>
       </div>
 
+      {/* Source Filter: All | WorkNext Recruiter | Adzuna */}
+      <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-sans">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-stone-500 dark:text-stone-400">Job Source:</span>
+          <div className="inline-flex p-1 rounded-xl bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800">
+            <button
+              type="button"
+              onClick={() => onSourceFilterChange('all')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                sourceFilter === 'all'
+                  ? 'bg-white dark:bg-[#252525] text-stone-900 dark:text-white shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
+              }`}
+            >
+              All {counts ? `(${counts.all})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => onSourceFilterChange('worknext')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                sourceFilter === 'worknext'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              WorkNext Recruiter {counts ? `(${counts.worknext})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => onSourceFilterChange('adzuna')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                sourceFilter === 'adzuna'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-sky-600 dark:hover:text-sky-400'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              Adzuna {counts ? `(${counts.adzuna})` : ''}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Remote toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none text-stone-700 dark:text-stone-300 font-medium">
+            <input
+              type="checkbox"
+              checked={isRemoteOnly}
+              onChange={e => onRemoteToggle(e.target.checked)}
+              className="w-4 h-4 rounded text-[#0F766E] focus:ring-[#0F766E] border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900"
+            />
+            <span>Remote Only</span>
+          </label>
+        </div>
+      </div>
+
       {/* Secondary Filter Row */}
-      <div className="pt-4 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center justify-between gap-4 text-xs font-sans">
+      <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center justify-between gap-4 text-xs font-sans">
         <div className="flex flex-wrap items-center gap-6">
           {/* Experience level */}
           <div className="flex items-center gap-2">
@@ -97,17 +164,6 @@ export const JobFilterForm: React.FC<JobFilterFormProps> = ({
             </select>
           </div>
 
-          {/* Remote toggle */}
-          <label className="flex items-center gap-2 cursor-pointer select-none text-stone-700 dark:text-stone-300 font-medium">
-            <input
-              type="checkbox"
-              checked={isRemoteOnly}
-              onChange={e => onRemoteToggle(e.target.checked)}
-              className="w-4 h-4 rounded text-[#0F766E] focus:ring-[#0F766E] border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900"
-            />
-            <span>Remote Only</span>
-          </label>
-
           {/* AI Match Slider */}
           <div className="flex items-center gap-2">
             <span className="text-stone-500 dark:text-stone-400 flex items-center gap-1">
@@ -115,7 +171,7 @@ export const JobFilterForm: React.FC<JobFilterFormProps> = ({
             </span>
             <input
               type="range"
-              min="50"
+              min="0"
               max="95"
               step="5"
               value={minMatchScore}

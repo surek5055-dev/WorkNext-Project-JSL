@@ -338,9 +338,33 @@ interface ServerJob {
   applicantsCount: number;
   experienceLevel: 'Entry-Level' | 'Mid-Level' | 'Senior' | 'Executive';
   applyUrl?: string;
+  source?: 'worknext' | 'adzuna' | string;
+  recruiterId?: string;
+  recruiterEmail?: string;
 }
 
 const backendJobsStore: ServerJob[] = [];
+
+interface ServerCandidate {
+  id: string;
+  name: string;
+  role: string;
+  location: string;
+  experienceYears: number;
+  matchScore: number;
+  skills: string[];
+  email: string;
+  phone: string;
+  bio: string;
+  status: 'applied' | 'screening' | 'interview' | 'offer' | 'archived';
+  appliedJobTitle: string;
+  appliedJobId?: string;
+  appliedDate: string;
+  notes?: string;
+  rating?: number;
+}
+
+const backendCandidatesStore: ServerCandidate[] = [];
 
 // Helper to strip HTML tags and decode basic HTML entities from Adzuna text
 function stripHtml(html: string = ''): string {
@@ -741,6 +765,7 @@ async function fetchAdzunaJobs(params: {
       applicantsCount,
       experienceLevel,
       applyUrl: item.redirect_url || '',
+      source: 'adzuna',
     };
   });
 
@@ -860,7 +885,7 @@ app.post('/api/jobs/adzuna', async (req, res) => {
 });
 
 // POST /api/jobs - recruiter creates a real verified opening
-app.post('/api/jobs', (req, res) => {
+app.post('/api/jobs', async (req, res) => {
   try {
     const role = (req.headers['x-user-role'] as string) || req.body?.userRole || req.body?.role;
     if (role && role !== 'recruiter' && role !== 'employer' && role !== 'admin') {
@@ -874,6 +899,9 @@ app.post('/api/jobs', (req, res) => {
     if (!jobData.title || !jobData.company) {
       return res.status(400).json({ success: false, error: 'Title and company are required to post an opening.' });
     }
+
+    const recruiterId = String(jobData.recruiterId || req.headers['x-recruiter-id'] || '').trim();
+    const recruiterEmail = String(jobData.recruiterEmail || req.headers['x-recruiter-email'] || '').trim();
 
     const newJob: ServerJob = {
       id: jobData.id || `job_${Date.now()}`,
@@ -891,7 +919,7 @@ app.post('/api/jobs', (req, res) => {
       description: String(jobData.description || '').trim(),
       requirements: Array.isArray(jobData.requirements)
         ? jobData.requirements.map((r: any) => String(r).trim()).filter(Boolean)
-        : [],
+        : (jobData.requirements ? String(jobData.requirements).split(',').map((s: string) => s.trim()).filter(Boolean) : []),
       matchScore: 0,
       skillGaps: [],
       urgent: Boolean(jobData.urgent),
@@ -899,10 +927,174 @@ app.post('/api/jobs', (req, res) => {
       applicantsCount: 0,
       experienceLevel: jobData.experienceLevel || 'Mid-Level',
       applyUrl: jobData.applyUrl || '',
+      source: 'worknext',
+      recruiterId,
+      recruiterEmail,
     };
 
     backendJobsStore.unshift(newJob);
+
+    // Save to Supabase if connected
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('jobs').insert([{
+          id: newJob.id,
+          title: newJob.title,
+          company: newJob.company,
+          company_logo: newJob.companyLogo,
+          location: newJob.location,
+          is_remote: newJob.isRemote,
+          type: newJob.type,
+          category: newJob.category,
+          salary_min: newJob.salaryMin,
+          salary_max: newJob.salaryMax,
+          salary_period: newJob.salaryPeriod,
+          description: newJob.description,
+          requirements: newJob.requirements,
+          experience_level: newJob.experienceLevel,
+          apply_url: newJob.applyUrl,
+          recruiter_id: newJob.recruiterId,
+          recruiter_email: newJob.recruiterEmail,
+          source: 'worknext',
+          posted_date: newJob.postedDate
+        }]);
+      } catch (dbErr: any) {
+        console.warn('Supabase job insertion note:', dbErr.message);
+      }
+    }
+
     return res.json({ success: true, job: newJob });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/recruiter/jobs - returns recruiter-created openings from database
+// Supports ?recruiterId=... & ?recruiterEmail=... to return ONLY that recruiter's own posted jobs for Recruiter Dashboard
+// Supports ?public=true to return all verified recruiter-posted jobs for User Job Finder
+app.get('/api/recruiter/jobs', async (req, res) => {
+  try {
+    const recruiterId = String(req.query.recruiterId || req.headers['x-recruiter-id'] || '').trim();
+    const recruiterEmail = String(req.query.recruiterEmail || req.headers['x-recruiter-email'] || '').trim();
+    const isPublic = req.query.public === 'true' || req.query.all === 'true';
+
+    const supabase = getSupabaseClient();
+    let jobs: ServerJob[] = [];
+
+    if (supabase) {
+      try {
+        let query = supabase.from('jobs').select('*');
+        if (!isPublic) {
+          if (recruiterId && recruiterEmail) {
+            query = query.or(`recruiter_id.eq.${recruiterId},recruiter_email.eq.${recruiterEmail}`);
+          } else if (recruiterId) {
+            query = query.eq('recruiter_id', recruiterId);
+          } else if (recruiterEmail) {
+            query = query.eq('recruiter_email', recruiterEmail);
+          }
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          jobs = data.map((row: any) => ({
+            id: String(row.id),
+            title: row.title || '',
+            company: row.company || '',
+            companyLogo: row.company_logo || '',
+            location: row.location || 'Remote',
+            isRemote: Boolean(row.is_remote),
+            type: row.type || 'Full-time',
+            category: row.category || 'General',
+            salaryMin: Number(row.salary_min || 0),
+            salaryMax: Number(row.salary_max || 0),
+            salaryPeriod: row.salary_period || 'year',
+            postedDate: row.posted_date || (row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Just now'),
+            description: row.description || '',
+            requirements: Array.isArray(row.requirements)
+              ? row.requirements
+              : (row.requirements ? String(row.requirements).split(',').map((s: string) => s.trim()) : []),
+            matchScore: 0,
+            skillGaps: [],
+            applicantsCount: Number(row.applicants_count || 0),
+            experienceLevel: row.experience_level || 'Mid-Level',
+            applyUrl: row.apply_url || '',
+            source: 'worknext',
+            recruiterId: row.recruiter_id || '',
+            recruiterEmail: row.recruiter_email || '',
+          }));
+        }
+      } catch (err: any) {
+        console.warn('Supabase recruiter jobs query note:', err.message);
+      }
+    }
+
+    // Merge with in-memory store
+    for (const memJob of backendJobsStore) {
+      if (!jobs.some(j => j.id === memJob.id)) {
+        if (isPublic) {
+          jobs.push(memJob);
+        } else if (!recruiterId && !recruiterEmail) {
+          jobs.push(memJob);
+        } else if (
+          (recruiterId && memJob.recruiterId === recruiterId) ||
+          (recruiterEmail && memJob.recruiterEmail === recruiterEmail)
+        ) {
+          jobs.push(memJob);
+        }
+      }
+    }
+
+    // If filtering for a specific recruiter, ensure strictly only that recruiter's jobs
+    if (!isPublic && (recruiterId || recruiterEmail)) {
+      jobs = jobs.filter(j => 
+        (recruiterId && j.recruiterId === recruiterId) ||
+        (recruiterEmail && j.recruiterEmail === recruiterEmail)
+      );
+    }
+
+    return res.json({
+      success: true,
+      jobs,
+      total: jobs.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, jobs: [] });
+  }
+});
+
+// DELETE /api/recruiter/jobs/:id - closes or removes a recruiter opening
+app.delete('/api/recruiter/jobs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const recruiterId = String(req.query.recruiterId || req.headers['x-recruiter-id'] || '').trim();
+    const recruiterEmail = String(req.query.recruiterEmail || req.headers['x-recruiter-email'] || '').trim();
+
+    const idx = backendJobsStore.findIndex(j => {
+      if (j.id !== id) return false;
+      if (recruiterId || recruiterEmail) {
+        return (recruiterId && j.recruiterId === recruiterId) || (recruiterEmail && j.recruiterEmail === recruiterEmail);
+      }
+      return true;
+    });
+    if (idx !== -1) {
+      backendJobsStore.splice(idx, 1);
+    }
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        let query = supabase.from('jobs').delete().eq('id', id);
+        if (recruiterId) {
+          query = query.eq('recruiter_id', recruiterId);
+        }
+        await query;
+      } catch (err: any) {
+        console.warn('Supabase delete job note:', err.message);
+      }
+    }
+
+    return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -984,6 +1176,149 @@ app.post('/api/jobs/rank', (req, res) => {
       total: rankedJobs.length,
       isDataSourceConnected: Boolean(jobsToRank.length > 0),
     });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/recruiter/candidates - returns real applicants from Supabase or backend store (starts empty)
+app.get('/api/recruiter/candidates', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    let candidates: ServerCandidate[] = [];
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('candidates')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          candidates = data.map((row: any) => ({
+            id: String(row.id),
+            name: row.name || 'Applicant',
+            role: row.role || row.target_role || 'Candidate',
+            location: row.location || '',
+            experienceYears: Number(row.experience_years || 0),
+            matchScore: Number(row.match_score || 0),
+            skills: Array.isArray(row.skills) ? row.skills : (row.skills ? String(row.skills).split(',').map((s: string) => s.trim()) : []),
+            email: row.email || '',
+            phone: row.phone || '',
+            bio: row.bio || '',
+            status: row.status || 'applied',
+            appliedJobTitle: row.applied_job_title || row.job_title || '',
+            appliedJobId: row.applied_job_id || row.job_id || '',
+            appliedDate: row.applied_date || (row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Just now'),
+            notes: row.notes || '',
+            rating: row.rating ? Number(row.rating) : undefined
+          }));
+        }
+      } catch (err: any) {
+        console.warn('Supabase candidates query note:', err.message);
+      }
+    }
+
+    if (candidates.length === 0) {
+      candidates = [...backendCandidatesStore];
+    }
+
+    return res.json({
+      success: true,
+      candidates,
+      total: candidates.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, candidates: [] });
+  }
+});
+
+// POST /api/recruiter/candidates - submit a genuine applicant submission to the backend
+app.post('/api/recruiter/candidates', async (req, res) => {
+  try {
+    const candidateData = req.body;
+    if (!candidateData.name && !candidateData.email) {
+      return res.status(400).json({ success: false, error: 'Candidate name or email is required' });
+    }
+
+    const newCandidate: ServerCandidate = {
+      id: candidateData.id || `cand_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: String(candidateData.name || '').trim(),
+      role: String(candidateData.role || candidateData.targetRole || 'Candidate').trim(),
+      location: String(candidateData.location || '').trim(),
+      experienceYears: Number(candidateData.experienceYears || 0),
+      matchScore: Number(candidateData.matchScore || 0),
+      skills: Array.isArray(candidateData.skills) ? candidateData.skills : [],
+      email: String(candidateData.email || '').trim(),
+      phone: String(candidateData.phone || '').trim(),
+      bio: String(candidateData.bio || '').trim(),
+      status: candidateData.status || 'applied',
+      appliedJobTitle: String(candidateData.appliedJobTitle || '').trim(),
+      appliedJobId: candidateData.appliedJobId || '',
+      appliedDate: candidateData.appliedDate || 'Just now',
+      notes: candidateData.notes || '',
+      rating: candidateData.rating ? Number(candidateData.rating) : undefined
+    };
+
+    backendCandidatesStore.unshift(newCandidate);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('candidates').insert([{
+          id: newCandidate.id,
+          name: newCandidate.name,
+          role: newCandidate.role,
+          location: newCandidate.location,
+          experience_years: newCandidate.experienceYears,
+          match_score: newCandidate.matchScore,
+          skills: newCandidate.skills,
+          email: newCandidate.email,
+          phone: newCandidate.phone,
+          bio: newCandidate.bio,
+          status: newCandidate.status,
+          applied_job_title: newCandidate.appliedJobTitle,
+          applied_job_id: newCandidate.appliedJobId,
+          notes: newCandidate.notes,
+        }]);
+      } catch (err: any) {
+        console.warn('Supabase candidate insert note:', err.message);
+      }
+    }
+
+    return res.json({ success: true, candidate: newCandidate });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /api/recruiter/candidates/:id - update real candidate status or assessment notes
+app.patch('/api/recruiter/candidates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, notes, rating } = req.body;
+
+    const existingIndex = backendCandidatesStore.findIndex(c => c.id === id);
+    if (existingIndex >= 0) {
+      if (status) backendCandidatesStore[existingIndex].status = status;
+      if (notes !== undefined) backendCandidatesStore[existingIndex].notes = notes;
+      if (rating !== undefined) backendCandidatesStore[existingIndex].rating = rating;
+    }
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const updatePayload: any = {};
+        if (status) updatePayload.status = status;
+        if (notes !== undefined) updatePayload.notes = notes;
+        if (rating !== undefined) updatePayload.rating = rating;
+        await supabase.from('candidates').update(updatePayload).eq('id', id);
+      } catch (err: any) {
+        console.warn('Supabase candidate update note:', err.message);
+      }
+    }
+
+    return res.json({ success: true, id, status, notes });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

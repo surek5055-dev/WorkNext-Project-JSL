@@ -41,7 +41,7 @@ interface AppContextType {
   savedJobIds: string[];
   appliedJobIds: string[];
   toggleSaveJob: (jobId: string) => void;
-  applyForJob: (jobId: string) => void;
+  applyForJob: (jobId: string, jobData?: Job) => void;
   
   notifications: NotificationItem[];
   markNotificationRead: (id: string) => void;
@@ -465,15 +465,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Unauthorized: Only recruiter or employer accounts can post job openings.');
       return;
     }
-    setJobs(prev => [job, ...prev]);
+    const jobWithRecruiter: Job = {
+      ...job,
+      source: 'worknext',
+      recruiterId: job.recruiterId || user.id || '',
+      recruiterEmail: job.recruiterEmail || user.email || '',
+    };
+    setJobs(prev => [jobWithRecruiter, ...prev]);
     try {
       await fetch('/api/jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-role': user.role || 'jobseeker',
+          'x-recruiter-id': user.id || '',
+          'x-recruiter-email': user.email || '',
         },
-        body: JSON.stringify(job),
+        body: JSON.stringify(jobWithRecruiter),
       });
     } catch (err) {
       console.error('Failed to sync job with backend:', err);
@@ -539,14 +547,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const applyForJob = (jobId: string) => {
+  const applyForJob = (jobId: string, jobData?: Job) => {
     if (!appliedJobIds.includes(jobId)) {
       const next = [...appliedJobIds, jobId];
       setAppliedJobIds(next);
       setUser(u => ({ ...u, appliedJobIds: next }));
 
       // Add notification for applying
-      const job = jobs.find(j => j.id === jobId);
+      const job = jobData || jobs.find(j => j.id === jobId);
       if (job) {
         const newNotif: NotificationItem = {
           id: 'not_' + Date.now(),
@@ -558,6 +566,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           link: '/dashboard'
         };
         setNotifications(prev => [newNotif, ...prev]);
+
+        // Sync real candidate application to backend
+        fetch('/api/recruiter/candidates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: user.name || 'Job Applicant',
+            email: user.email || '',
+            phone: user.phone || '',
+            location: user.location || '',
+            role: user.title || 'Applicant',
+            experienceYears: user.experienceYears || 0,
+            matchScore: job.matchScore || 0,
+            skills: user.skills || [],
+            bio: user.bio || '',
+            status: 'applied',
+            appliedJobTitle: job.title,
+            appliedJobId: job.id,
+            recruiterId: job.recruiterId || '',
+            recruiterEmail: job.recruiterEmail || '',
+          }),
+        }).catch(err => {
+          console.warn('Could not sync application to backend:', err);
+        });
       }
     }
   };

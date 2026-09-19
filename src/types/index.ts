@@ -127,6 +127,9 @@ export interface Job {
   applicantsCount: number;
   experienceLevel: 'Entry-Level' | 'Mid-Level' | 'Senior' | 'Executive';
   applyUrl?: string; // Real apply URL from Adzuna / employer
+  source?: 'worknext' | 'adzuna' | string;
+  recruiterId?: string;
+  recruiterEmail?: string;
 }
 
 export interface ResumeSectionExperience {

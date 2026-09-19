@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Job } from '../../types';
 import { Button } from '../ui/Button';
-import { MapPin, DollarSign, Sparkles, Bookmark, BookmarkCheck, Users, Clock, CheckCircle2, ExternalLink } from 'lucide-react';
+import { MapPin, DollarSign, Sparkles, Bookmark, BookmarkCheck, Users, Clock, CheckCircle2, ExternalLink, Globe } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 interface JobCardProps {
@@ -76,6 +76,18 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
 
         {/* AI Match Badge & Tags */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
+          {job.source === 'worknext' || (!job.source?.includes('adzuna') && !job.id.startsWith('adzuna_')) ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/60 font-sans">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              WorkNext Recruiter
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-300/80 dark:border-sky-800/60 font-sans">
+              <Globe className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              Adzuna
+            </span>
+          )}
+
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 text-[#0F766E] dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/40 font-sans">
             <Sparkles className="w-3.5 h-3.5" />
             {job.matchScore}% Match
@@ -165,7 +177,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
               rel="noopener noreferrer"
               onClick={(e) => {
                 e.stopPropagation();
-                applyForJob(job.id);
+                applyForJob(job.id, job);
               }}
               className="inline-flex shrink-0"
             >
@@ -181,7 +193,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
             <Button
               variant="primary"
               size="sm"
-              onClick={() => applyForJob(job.id)}
+              onClick={() => applyForJob(job.id, job)}
               className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center justify-center min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
             >
               Apply Now

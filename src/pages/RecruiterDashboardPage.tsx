@@ -24,7 +24,6 @@ import {
   Phone,
   MapPin,
   Globe,
-  Award,
   TrendingUp,
   UserCheck,
   ChevronRight,
@@ -57,111 +56,6 @@ interface Candidate {
   rating?: number;
 }
 
-const INITIAL_CANDIDATES: Candidate[] = [
-  {
-    id: 'cand_1',
-    name: 'Aarav Sharma',
-    role: 'Senior Frontend Engineer',
-    location: 'Bengaluru, India',
-    experienceYears: 5,
-    matchScore: 96,
-    skills: ['React', 'TypeScript', 'Next.js', 'Tailwind CSS', 'Redux', 'GraphQL'],
-    email: 'aarav.sharma@example.com',
-    phone: '+91 98765 43210',
-    bio: 'Specialist in scalable web architectures, design systems, and responsive performance optimization.',
-    status: 'interview',
-    appliedJobTitle: 'Senior Frontend Engineer',
-    appliedDate: '2 days ago',
-    notes: 'Exceeded technical assessment on React state architecture. Scheduling round 2 with engineering lead.',
-    rating: 5
-  },
-  {
-    id: 'cand_2',
-    name: 'Priya Sundaram',
-    role: 'Full Stack Developer',
-    location: 'Hyderabad, India',
-    experienceYears: 4,
-    matchScore: 92,
-    skills: ['Node.js', 'TypeScript', 'PostgreSQL', 'Express', 'React', 'Docker'],
-    email: 'priya.sundaram@example.com',
-    phone: '+91 98234 56789',
-    bio: 'Full-stack builder with strong focus on API performance, data pipelines, and microservices.',
-    status: 'screening',
-    appliedJobTitle: 'Full Stack Engineer',
-    appliedDate: '3 days ago',
-    notes: 'Strong backend proficiency in PostgreSQL and TypeScript.',
-    rating: 4
-  },
-  {
-    id: 'cand_3',
-    name: 'Rohan Deshmukh',
-    role: 'AI & Data Solutions Engineer',
-    location: 'Pune, India',
-    experienceYears: 6,
-    matchScore: 89,
-    skills: ['Python', 'PyTorch', 'TensorFlow', 'NLP', 'SQL', 'FastAPI'],
-    email: 'rohan.deshmukh@example.com',
-    phone: '+91 97123 45678',
-    bio: 'Builds LLM tooling, NLP pipelines, and production machine learning models.',
-    status: 'offer',
-    appliedJobTitle: 'AI Solutions Engineer',
-    appliedDate: '1 week ago',
-    notes: 'Offer letter extended. Candidate reviewing package details.',
-    rating: 5
-  },
-  {
-    id: 'cand_4',
-    name: 'Ananya Verma',
-    role: 'Product Designer (UI/UX)',
-    location: 'Mumbai, India',
-    experienceYears: 4,
-    matchScore: 91,
-    skills: ['Figma', 'Design Systems', 'User Research', 'Prototyping', 'Accessibility (WCAG)'],
-    email: 'ananya.verma@example.com',
-    phone: '+91 99887 66554',
-    bio: 'Product designer obsessed with micro-interactions, clean typographic rhythms, and accessibility.',
-    status: 'applied',
-    appliedJobTitle: 'Product Designer',
-    appliedDate: 'Yesterday',
-    notes: 'Portfolio review completed. High quality design systems samples.',
-    rating: 4
-  },
-  {
-    id: 'cand_5',
-    name: 'Kavita Menon',
-    role: 'DevOps & Cloud Engineer',
-    location: 'Chennai, India',
-    experienceYears: 5,
-    matchScore: 87,
-    skills: ['AWS', 'Kubernetes', 'Terraform', 'CI/CD', 'Docker', 'Prometheus'],
-    email: 'kavita.menon@example.com',
-    phone: '+91 96543 21098',
-    bio: 'Infrastructure specialist building zero-downtime deployments and cloud observability.',
-    status: 'screening',
-    appliedJobTitle: 'Cloud Architect',
-    appliedDate: '4 days ago',
-    notes: 'Reviewing AWS certifications and multi-cloud architectures.',
-    rating: 4
-  },
-  {
-    id: 'cand_6',
-    name: 'Vikram Mehta',
-    role: 'Backend Systems Engineer',
-    location: 'Gurugram, India',
-    experienceYears: 7,
-    matchScore: 94,
-    skills: ['Go', 'Distributed Systems', 'Kafka', 'Redis', 'PostgreSQL', 'gRPC'],
-    email: 'vikram.mehta@example.com',
-    phone: '+91 95432 10987',
-    bio: 'High-throughput distributed systems engineer with experience in fintech payments processing.',
-    status: 'applied',
-    appliedJobTitle: 'Senior Backend Engineer',
-    appliedDate: '5 hours ago',
-    notes: 'New applicant matching all backend distributed systems criteria.',
-    rating: 5
-  }
-];
-
 export const RecruiterDashboardPage: React.FC = () => {
   const { jobs, addJob, user, setUser, isLoggedIn } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -182,24 +76,71 @@ export const RecruiterDashboardPage: React.FC = () => {
     setSearchParams({ tab });
   };
 
-  // Candidates & Applications State
-  const [candidates, setCandidates] = useState<Candidate[]>(() => {
-    try {
-      const saved = localStorage.getItem('worknext_recruiter_candidates_v1');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_CANDIDATES;
-  });
+  // Real Recruiter Jobs State from Backend Database (starts empty)
+  const [recruiterJobs, setRecruiterJobs] = useState<Job[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
 
+  // Real Candidates & Applications State from Backend
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(true);
+
+  // Fetch real recruiter-posted jobs and candidates from backend database on mount
   useEffect(() => {
+    // Purge any legacy synthetic candidates cached in browser localStorage
     try {
-      localStorage.setItem('worknext_recruiter_candidates_v1', JSON.stringify(candidates));
+      localStorage.removeItem('worknext_recruiter_candidates_v1');
     } catch (e) {
       console.error(e);
     }
-  }, [candidates]);
+
+    const fetchRecruiterJobs = async () => {
+      setLoadingJobs(true);
+      try {
+        const q = new URLSearchParams();
+        if (user?.id) q.set('recruiterId', user.id);
+        if (user?.email) q.set('recruiterEmail', user.email);
+
+        const res = await fetch(`/api/recruiter/jobs?${q.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.jobs)) {
+            // Strictly show only this recruiter's own posted jobs
+            const ownJobs = data.jobs.filter((j: Job) => {
+              if (user?.id && j.recruiterId === user.id) return true;
+              if (user?.email && j.recruiterEmail === user.email) return true;
+              if (!j.recruiterId && !j.recruiterEmail) return true;
+              return false;
+            });
+            setRecruiterJobs(ownJobs);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching recruiter jobs:', err);
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+
+    const fetchRealCandidates = async () => {
+      setLoadingCandidates(true);
+      try {
+        const res = await fetch('/api/recruiter/candidates');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.candidates)) {
+            setCandidates(data.candidates);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching real candidates:', err);
+      } finally {
+        setLoadingCandidates(false);
+      }
+    };
+
+    fetchRecruiterJobs();
+    fetchRealCandidates();
+  }, []);
 
   // Selected Candidate for Detailed Credentials Modal
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -207,16 +148,16 @@ export const RecruiterDashboardPage: React.FC = () => {
   // Post Job Form State
   const [newJob, setNewJob] = useState({
     title: '',
-    company: user.company || user.name || 'WorkNext Partner',
-    location: user.location || 'Bengaluru, India',
+    company: user.company || user.name || '',
+    location: user.location || '',
     isRemote: true,
     type: 'Full-time' as const,
     category: 'Software Engineering',
-    salaryMin: 800000,
-    salaryMax: 1600000,
+    salaryMin: 0,
+    salaryMax: 0,
     experienceLevel: 'Mid-Level',
     description: '',
-    requirements: 'React, TypeScript, Tailwind CSS, API Integration'
+    requirements: ''
   });
 
   const [postSuccessAlert, setPostSuccessAlert] = useState(false);
@@ -226,12 +167,12 @@ export const RecruiterDashboardPage: React.FC = () => {
   const [profileForm, setProfileForm] = useState({
     name: user.name || '',
     email: user.email || '',
-    company: user.company || 'TechNext Enterprise',
-    title: user.title || 'Director of Talent Acquisition',
-    location: user.location || 'Bengaluru, Karnataka, India',
-    website: user.website || 'https://technext.example.com',
-    phone: user.phone || '+91 80 4000 1234',
-    bio: user.bio || 'Building world-class engineering and product teams across high-growth technology sectors.'
+    company: user.company || '',
+    title: user.title || '',
+    location: user.location || '',
+    website: user.website || '',
+    phone: user.phone || '',
+    bio: user.bio || ''
   });
 
   // Handle Save Recruiter Profile
@@ -261,7 +202,7 @@ export const RecruiterDashboardPage: React.FC = () => {
       title: newJob.title.trim(),
       company: newJob.company.trim(),
       companyLogo: '',
-      location: newJob.location.trim() || 'Remote, India',
+      location: newJob.location.trim() || 'Remote',
       isRemote: newJob.isRemote,
       type: newJob.type,
       category: newJob.category,
@@ -269,52 +210,67 @@ export const RecruiterDashboardPage: React.FC = () => {
       salaryMax: Number(newJob.salaryMax) || 0,
       salaryPeriod: 'year',
       postedDate: 'Just now',
-      description: newJob.description.trim() || 'Join our verified organization for this high-impact opening.',
+      description: newJob.description.trim(),
       requirements: newJob.requirements.split(',').map(r => r.trim()).filter(Boolean),
       matchScore: 0,
       skillGaps: [],
       applicantsCount: 0,
-      experienceLevel: newJob.experienceLevel as any
+      experienceLevel: newJob.experienceLevel as any,
+      source: 'worknext',
+      recruiterId: user.id || '',
+      recruiterEmail: user.email || '',
     };
 
     addJob(created);
+    setRecruiterJobs(prev => [created, ...prev]);
     setPostSuccessAlert(true);
     setNewJob({
       title: '',
-      company: user.company || user.name || 'WorkNext Partner',
-      location: user.location || 'Bengaluru, India',
+      company: user.company || user.name || '',
+      location: user.location || '',
       isRemote: true,
       type: 'Full-time',
       category: 'Software Engineering',
-      salaryMin: 800000,
-      salaryMax: 1600000,
+      salaryMin: 0,
+      salaryMax: 0,
       experienceLevel: 'Mid-Level',
       description: '',
-      requirements: 'React, TypeScript, Tailwind CSS, API Integration'
+      requirements: ''
     });
     setTimeout(() => setPostSuccessAlert(false), 4000);
   };
 
-  // Fast-fill role template
-  const applyRolePreset = (title: string, category: string, reqs: string, minSal: number, maxSal: number) => {
-    setNewJob(prev => ({
-      ...prev,
-      title,
-      category,
-      requirements: reqs,
-      salaryMin: minSal,
-      salaryMax: maxSal
-    }));
+  // Close or delete recruiter job opening
+  const handleDeleteJob = async (jobId: string) => {
+    setRecruiterJobs(prev => prev.filter(j => j.id !== jobId));
+    try {
+      const q = new URLSearchParams();
+      if (user?.id) q.set('recruiterId', user.id);
+      if (user?.email) q.set('recruiterEmail', user.email);
+      await fetch(`/api/recruiter/jobs/${jobId}?${q.toString()}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('Error deleting recruiter job:', err);
+    }
   };
 
-  // Candidate Status Updater
+  // Candidate Status Updater with backend sync
   const updateCandidateStatus = (candidateId: string, newStatus: Candidate['status']) => {
     setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, status: newStatus } : c));
+    fetch(`/api/recruiter/candidates/${candidateId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    }).catch(e => console.warn('Could not update status on backend', e));
   };
 
-  // Candidate Note Updater
+  // Candidate Note Updater with backend sync
   const updateCandidateNote = (candidateId: string, notes: string) => {
     setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, notes } : c));
+    fetch(`/api/recruiter/candidates/${candidateId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    }).catch(e => console.warn('Could not update notes on backend', e));
   };
 
   // Filter States
@@ -333,7 +289,7 @@ export const RecruiterDashboardPage: React.FC = () => {
     return c.status === applicationStageFilter;
   });
 
-  const filteredJobs = jobs.filter(j => {
+  const filteredJobs = recruiterJobs.filter(j => {
     if (!jobSearchQuery.trim()) return true;
     const q = jobSearchQuery.toLowerCase();
     return j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q) || j.location.toLowerCase().includes(q);
@@ -399,7 +355,7 @@ export const RecruiterDashboardPage: React.FC = () => {
           {[
             { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
             { id: 'post', label: 'Post Jobs', icon: <PlusCircle className="w-3.5 h-3.5" /> },
-            { id: 'openings', label: 'Active Openings', count: jobs.length, icon: <Briefcase className="w-3.5 h-3.5" /> },
+            { id: 'openings', label: 'Active Openings', count: recruiterJobs.length, icon: <Briefcase className="w-3.5 h-3.5" /> },
             { id: 'candidates', label: 'Matched Candidates', count: candidates.length, icon: <Sparkles className="w-3.5 h-3.5" /> },
             { id: 'applications', label: 'Applications', count: candidates.length, icon: <FileCheck className="w-3.5 h-3.5" /> },
             { id: 'management', label: 'Candidate Management', icon: <Users className="w-3.5 h-3.5" /> },
@@ -470,16 +426,22 @@ export const RecruiterDashboardPage: React.FC = () => {
         {currentTab === 'dashboard' && (
           <div className="space-y-8">
             {/* Executive KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-2">
                 <div className="flex items-center justify-between text-stone-500 dark:text-stone-400">
                   <span className="text-xs font-semibold uppercase tracking-wider">Active Postings</span>
                   <Briefcase className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />
                 </div>
-                <p className="text-3xl font-extrabold text-stone-900 dark:text-white font-display">{jobs.length}</p>
-                <p className="text-[11px] text-[#0F766E] dark:text-teal-400 font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#0F766E] dark:bg-teal-400" />
-                  Live in Job Finder
+                <p className="text-3xl font-extrabold text-stone-900 dark:text-white font-display">{recruiterJobs.length}</p>
+                <p className="text-[11px] text-[#0F766E] dark:text-teal-400 font-medium flex items-center gap-1">
+                  {recruiterJobs.length === 0 ? (
+                    <span className="text-stone-400">No active openings</span>
+                  ) : (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0F766E] dark:bg-teal-400" />
+                      Live in Job Finder
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -490,30 +452,8 @@ export const RecruiterDashboardPage: React.FC = () => {
                 </div>
                 <p className="text-3xl font-extrabold text-stone-900 dark:text-white font-display">{candidates.length}</p>
                 <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                  Pre-screened with &gt;85% match
+                  {candidates.length === 0 ? 'No candidates yet' : 'Scored by verified skills'}
                 </p>
-              </div>
-
-              <div className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-2">
-                <div className="flex items-center justify-between text-stone-500 dark:text-stone-400">
-                  <span className="text-xs font-semibold uppercase tracking-wider">In Pipeline</span>
-                  <FileCheck className="w-4 h-4 text-indigo-500" />
-                </div>
-                <p className="text-3xl font-extrabold text-[#0F766E] dark:text-teal-400 font-display">
-                  {candidates.filter(c => c.status !== 'archived').length}
-                </p>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                  {countInterview} interviews scheduled
-                </p>
-              </div>
-
-              <div className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-2">
-                <div className="flex items-center justify-between text-stone-500 dark:text-stone-400">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Vetting Accuracy</span>
-                  <Award className="w-4 h-4 text-emerald-500" />
-                </div>
-                <p className="text-3xl font-extrabold text-stone-900 dark:text-white font-display">95.4%</p>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400">Skill verification active</p>
               </div>
             </div>
 
@@ -544,152 +484,87 @@ export const RecruiterDashboardPage: React.FC = () => {
               </button>
 
               <button
-                onClick={() => setTab('management')}
+                onClick={() => setTab('applications')}
                 className="p-5 rounded-2xl bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 text-stone-900 dark:text-white text-left transition-all hover:border-teal-500/50 hover:shadow-sm group cursor-pointer"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <Users className="w-6 h-6 text-teal-600 dark:text-teal-400" />
+                  <FileCheck className="w-6 h-6 text-teal-600 dark:text-teal-400" />
                   <ChevronRight className="w-4 h-4 text-stone-400 group-hover:translate-x-1 transition-transform" />
                 </div>
-                <h3 className="font-bold text-sm font-display">Manage Pipeline</h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">Track screening, interviews, & offers in Kanban view</p>
+                <h3 className="font-bold text-sm font-display">Candidate Applications</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">Review applicant submissions and verified qualifications</p>
               </button>
             </div>
 
-            {/* Two Column Layout: Active Openings & Candidate Pipeline Snapshot */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Left Column: Active Postings Overview */}
-              <div className="lg:col-span-2 p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-base text-stone-900 dark:text-white flex items-center gap-2 font-display">
-                    <Briefcase className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />
-                    Active Job Openings ({jobs.length})
-                  </h3>
+            {/* Active Job Openings Overview */}
+            <div className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-5">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base text-stone-900 dark:text-white flex items-center gap-2 font-display">
+                  <Briefcase className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />
+                  Active Job Openings ({recruiterJobs.length})
+                </h3>
+                {recruiterJobs.length > 0 && (
                   <button
                     onClick={() => setTab('openings')}
                     className="text-xs font-bold text-[#0F766E] dark:text-teal-400 hover:underline cursor-pointer"
                   >
                     View All →
                   </button>
-                </div>
+                )}
+              </div>
 
-                {jobs.length === 0 ? (
-                  <div className="p-8 rounded-2xl border border-dashed border-stone-200 dark:border-stone-800 text-center space-y-3 bg-stone-50/50 dark:bg-stone-900/40">
-                    <Briefcase className="w-8 h-8 mx-auto text-stone-400" />
-                    <p className="text-xs text-stone-500 dark:text-stone-400">No active job postings found.</p>
-                    <Button variant="primary" size="sm" onClick={() => setTab('post')} className="bg-[#0F766E] hover:bg-[#0D655E]">
-                      Post Your First Opening
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {jobs.slice(0, 3).map(job => (
-                      <div
-                        key={job.id}
-                        className="p-4 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div>
-                          <h4 className="text-xs font-bold text-stone-900 dark:text-white font-display">{job.title}</h4>
-                          <p className="text-[11px] text-stone-500 dark:text-stone-400 font-sans">
-                            {job.company} • {job.location} • {job.type}
-                          </p>
+              {recruiterJobs.length === 0 ? (
+                <div className="p-10 rounded-2xl border border-dashed border-stone-200 dark:border-stone-800 text-center space-y-3 bg-stone-50/50 dark:bg-stone-900/40">
+                  <Briefcase className="w-10 h-10 mx-auto text-stone-400" />
+                  <h4 className="text-sm font-bold text-stone-900 dark:text-white font-display">No active openings</h4>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
+                    You have not published any job openings yet. List positions with transparent salary bands to match verified candidates.
+                  </p>
+                  <Button variant="primary" size="sm" onClick={() => setTab('post')} className="bg-[#0F766E] hover:bg-[#0D655E]">
+                    Post Your First Opening
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recruiterJobs.slice(0, 5).map(job => (
+                    <div
+                      key={job.id}
+                      className="p-4 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div>
+                        <h4 className="text-xs font-bold text-stone-900 dark:text-white font-display">{job.title}</h4>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 font-sans">
+                          {job.company} • {job.location} • {job.type}
+                        </p>
+                        {job.requirements && job.requirements.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
-                            {job.requirements.slice(0, 3).map((req, rIdx) => (
+                            {job.requirements.slice(0, 4).map((req, rIdx) => (
                               <span key={rIdx} className="text-[10px] px-2 py-0.5 rounded-md bg-stone-200/60 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
                                 {req}
                               </span>
                             ))}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {(job.salaryMin > 0 || job.salaryMax > 0) && (
                           <span className="text-xs font-mono font-bold text-[#0F766E] dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-2.5 py-1 rounded-lg">
                             ₹{job.salaryMin.toLocaleString()} - ₹{job.salaryMax.toLocaleString()}/yr
                           </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setTab('candidates')}
-                            className="text-xs"
-                          >
-                            Matches
-                          </Button>
-                        </div>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTab('candidates')}
+                          className="text-xs"
+                        >
+                          Matches
+                        </Button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: Pipeline Status Breakdown */}
-              <div className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-base text-stone-900 dark:text-white flex items-center gap-2 font-display">
-                    <Users className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />
-                    Hiring Stages
-                  </h3>
-                  <button onClick={() => setTab('management')} className="text-xs font-bold text-[#0F766E] dark:text-teal-400 hover:underline cursor-pointer">
-                    Manage →
-                  </button>
+                    </div>
+                  ))}
                 </div>
-
-                <div className="space-y-3">
-                  <div
-                    onClick={() => { setApplicationStageFilter('applied'); setTab('applications'); }}
-                    className="p-3.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex items-center justify-between cursor-pointer hover:border-teal-500/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                      <span className="text-xs font-medium text-stone-700 dark:text-stone-300">New Applications</span>
-                    </div>
-                    <span className="text-xs font-bold text-stone-900 dark:text-white font-mono">{countApplied}</span>
-                  </div>
-
-                  <div
-                    onClick={() => { setApplicationStageFilter('screening'); setTab('applications'); }}
-                    className="p-3.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex items-center justify-between cursor-pointer hover:border-teal-500/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                      <span className="text-xs font-medium text-stone-700 dark:text-stone-300">Screening & Review</span>
-                    </div>
-                    <span className="text-xs font-bold text-stone-900 dark:text-white font-mono">{countScreening}</span>
-                  </div>
-
-                  <div
-                    onClick={() => { setApplicationStageFilter('interview'); setTab('applications'); }}
-                    className="p-3.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex items-center justify-between cursor-pointer hover:border-teal-500/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                      <span className="text-xs font-medium text-stone-700 dark:text-stone-300">Interviews Scheduled</span>
-                    </div>
-                    <span className="text-xs font-bold text-stone-900 dark:text-white font-mono">{countInterview}</span>
-                  </div>
-
-                  <div
-                    onClick={() => { setApplicationStageFilter('offer'); setTab('applications'); }}
-                    className="p-3.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex items-center justify-between cursor-pointer hover:border-teal-500/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-medium text-stone-700 dark:text-stone-300">Offers Extended</span>
-                    </div>
-                    <span className="text-xs font-bold text-stone-900 dark:text-white font-mono">{countOffer}</span>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs"
-                    onClick={() => setTab('profile')}
-                    icon={<Building2 className="w-3.5 h-3.5" />}
-                  >
-                    Recruiter Profile & Branding
-                  </Button>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}
@@ -709,28 +584,6 @@ export const RecruiterDashboardPage: React.FC = () => {
                 <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
                   List positions with transparent salary bands to match verified skill profiles immediately.
                 </p>
-              </div>
-
-              {/* Fast presets */}
-              <div className="space-y-1.5">
-                <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Quick Role Presets:</span>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { title: 'Senior Frontend Engineer', cat: 'Software Engineering', reqs: 'React, TypeScript, Next.js, Tailwind CSS', min: 1200000, max: 2200000 },
-                    { title: 'Full Stack Engineer', cat: 'Software Engineering', reqs: 'Node.js, React, PostgreSQL, Docker', min: 1000000, max: 1800000 },
-                    { title: 'AI/ML Solutions Architect', cat: 'Data Science & AI', reqs: 'Python, PyTorch, LLM, FastAPI, Cloud', min: 1600000, max: 2800000 },
-                    { title: 'Product UI/UX Designer', cat: 'Design & Creative', reqs: 'Figma, Design Systems, User Research, Prototyping', min: 900000, max: 1600000 }
-                  ].map((preset, pIdx) => (
-                    <button
-                      key={pIdx}
-                      type="button"
-                      onClick={() => applyRolePreset(preset.title, preset.cat, preset.reqs, preset.min, preset.max)}
-                      className="text-[11px] px-3 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-[#0F766E] dark:hover:text-teal-300 text-stone-700 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700 transition-colors cursor-pointer"
-                    >
-                      + {preset.title}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <form onSubmit={handleCreatePost} className="space-y-4 text-xs">
@@ -965,7 +818,7 @@ export const RecruiterDashboardPage: React.FC = () => {
             {filteredJobs.length === 0 ? (
               <div className="p-12 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-dashed border-stone-200 dark:border-stone-800 text-center space-y-4">
                 <Briefcase className="w-10 h-10 mx-auto text-stone-400" />
-                <h3 className="text-sm font-bold text-stone-900 dark:text-white font-display">No Job Postings Found</h3>
+                <h3 className="text-sm font-bold text-stone-900 dark:text-white font-display">No active openings</h3>
                 <p className="text-xs text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
                   {jobSearchQuery ? 'No openings match your search query.' : 'You have not published any job openings yet.'}
                 </p>
@@ -1035,6 +888,13 @@ export const RecruiterDashboardPage: React.FC = () => {
                         >
                           Applications
                         </Button>
+                        <button
+                          onClick={() => handleDeleteJob(job.id)}
+                          className="p-2 rounded-xl text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 border border-stone-200 dark:border-stone-800 transition-colors cursor-pointer"
+                          title="Remove Opening"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1085,81 +945,107 @@ export const RecruiterDashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {filteredCandidates.map(candidate => (
-                <div
-                  key={candidate.id}
-                  className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-4 relative flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-bold text-stone-900 dark:text-white font-display">{candidate.name}</h3>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <Check className="w-3 h-3" /> Skill Verified
-                          </span>
-                        </div>
-                        <p className="text-xs text-stone-600 dark:text-stone-300 font-medium">{candidate.role}</p>
-                        <p className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-2 mt-0.5">
-                          <span><MapPin className="w-3 h-3 inline mr-0.5" />{candidate.location}</span>
-                          <span>• {candidate.experienceYears} yrs experience</span>
-                        </p>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-teal-500/15 text-[#0F766E] dark:text-teal-400 font-mono font-bold text-xs">
-                          <Sparkles className="w-3 h-3 text-amber-500" />
-                          {candidate.matchScore}% Match
-                        </span>
-                        <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">Target: {candidate.appliedJobTitle}</p>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">
-                      {candidate.bio}
-                    </p>
-
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Verified Competencies</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {candidate.skills.map((s, sIdx) => (
-                          <span key={sIdx} className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedCandidate(candidate)}
-                      icon={<Eye className="w-3.5 h-3.5" />}
-                      className="text-xs"
-                    >
-                      View Profile
+            {loadingCandidates ? (
+              <div className="p-12 text-center text-xs text-stone-500 dark:text-stone-400">
+                Loading candidate pool...
+              </div>
+            ) : filteredCandidates.length === 0 ? (
+              <div className="p-12 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-dashed border-stone-200 dark:border-stone-800 text-center space-y-4">
+                <Users className="w-10 h-10 mx-auto text-stone-400" />
+                <h3 className="text-sm font-bold text-stone-900 dark:text-white font-display">No candidates yet</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
+                  {candidateFilter !== 'all'
+                    ? 'No candidates match the selected match score filter.'
+                    : 'No candidates have applied or matched your active criteria yet.'}
+                </p>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <Button variant="primary" size="sm" onClick={() => setTab('post')} className="bg-[#0F766E] hover:bg-[#0D655E]">
+                    Post New Opening
+                  </Button>
+                  {candidateFilter !== 'all' && (
+                    <Button variant="outline" size="sm" onClick={() => setCandidateFilter('all')}>
+                      Show All Candidates
                     </Button>
-                    <div className="flex items-center gap-2">
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredCandidates.map(candidate => (
+                  <div
+                    key={candidate.id}
+                    className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-4 relative flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-stone-900 dark:text-white font-display">{candidate.name}</h3>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Skill Verified
+                            </span>
+                          </div>
+                          <p className="text-xs text-stone-600 dark:text-stone-300 font-medium">{candidate.role}</p>
+                          <p className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-2 mt-0.5">
+                            <span><MapPin className="w-3 h-3 inline mr-0.5" />{candidate.location}</span>
+                            <span>• {candidate.experienceYears} yrs experience</span>
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-teal-500/15 text-[#0F766E] dark:text-teal-400 font-mono font-bold text-xs">
+                            <Sparkles className="w-3 h-3 text-amber-500" />
+                            {candidate.matchScore}% Match
+                          </span>
+                          <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">Target: {candidate.appliedJobTitle}</p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">
+                        {candidate.bio}
+                      </p>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Verified Competencies</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {candidate.skills.map((s, sIdx) => (
+                            <span key={sIdx} className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200">
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-3">
                       <Button
-                        variant="primary"
+                        variant="outline"
                         size="sm"
-                        onClick={() => {
-                          updateCandidateStatus(candidate.id, 'interview');
-                          setTab('management');
-                        }}
-                        icon={<Mail className="w-3.5 h-3.5" />}
-                        className="text-xs bg-[#0F766E] hover:bg-[#0D655E]"
+                        onClick={() => setSelectedCandidate(candidate)}
+                        icon={<Eye className="w-3.5 h-3.5" />}
+                        className="text-xs"
                       >
-                        Invite to Interview
+                        View Profile
                       </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            updateCandidateStatus(candidate.id, 'interview');
+                            setTab('management');
+                          }}
+                          icon={<Mail className="w-3.5 h-3.5" />}
+                          className="text-xs bg-[#0F766E] hover:bg-[#0D655E]"
+                        >
+                          Invite to Interview
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1203,68 +1089,89 @@ export const RecruiterDashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-3">
-              {filteredApplications.map(app => (
-                <div
-                  key={app.id}
-                  className="p-5 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <h4 className="text-sm font-bold text-stone-900 dark:text-white font-display">{app.name}</h4>
-                      <span className="text-[11px] text-stone-500 dark:text-stone-400 font-sans">
-                        applied for <span className="font-semibold text-stone-800 dark:text-stone-200">{app.appliedJobTitle}</span>
-                      </span>
-                      <span className="text-xs text-stone-400 font-mono">• {app.appliedDate}</span>
-                    </div>
-
-                    <p className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-4">
-                      <span><Mail className="w-3 h-3 inline mr-1" /> {app.email}</span>
-                      <span><Phone className="w-3 h-3 inline mr-1" /> {app.phone}</span>
-                      <span><MapPin className="w-3 h-3 inline mr-1" /> {app.location}</span>
-                    </p>
-
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {app.skills.map((s, idx) => (
-                        <span key={idx} className="text-[10px] px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                          {s}
+            {loadingCandidates ? (
+              <div className="p-12 text-center text-xs text-stone-500 dark:text-stone-400">
+                Loading applications...
+              </div>
+            ) : filteredApplications.length === 0 ? (
+              <div className="p-12 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-dashed border-stone-200 dark:border-stone-800 text-center space-y-4">
+                <FileCheck className="w-10 h-10 mx-auto text-stone-400" />
+                <h3 className="text-sm font-bold text-stone-900 dark:text-white font-display">No applications yet</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
+                  {applicationStageFilter !== 'all'
+                    ? `No applications currently in the "${applicationStageFilter}" stage.`
+                    : 'No candidate applications have been received yet.'}
+                </p>
+                {applicationStageFilter !== 'all' && (
+                  <Button variant="outline" size="sm" onClick={() => setApplicationStageFilter('all')}>
+                    Show All Stages
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredApplications.map(app => (
+                  <div
+                    key={app.id}
+                    className="p-5 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h4 className="text-sm font-bold text-stone-900 dark:text-white font-display">{app.name}</h4>
+                        <span className="text-[11px] text-stone-500 dark:text-stone-400 font-sans">
+                          applied for <span className="font-semibold text-stone-800 dark:text-stone-200">{app.appliedJobTitle}</span>
                         </span>
-                      ))}
+                        <span className="text-xs text-stone-400 font-mono">• {app.appliedDate}</span>
+                      </div>
+
+                      <p className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-4">
+                        <span><Mail className="w-3 h-3 inline mr-1" /> {app.email}</span>
+                        <span><Phone className="w-3 h-3 inline mr-1" /> {app.phone}</span>
+                        <span><MapPin className="w-3 h-3 inline mr-1" /> {app.location}</span>
+                      </p>
+
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {app.skills.map((s, idx) => (
+                          <span key={idx} className="text-[10px] px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-stone-100 dark:border-stone-800">
+                      <div className="text-right">
+                        <span className="text-xs font-mono font-bold text-[#0F766E] dark:text-teal-400">
+                          {app.matchScore}% Match
+                        </span>
+                      </div>
+
+                      <select
+                        value={app.status}
+                        onChange={e => updateCandidateStatus(app.id, e.target.value as any)}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#0F766E]"
+                      >
+                        <option value="applied">Applied (New)</option>
+                        <option value="screening">Screening</option>
+                        <option value="interview">Interview</option>
+                        <option value="offer">Offer Extended</option>
+                        <option value="archived">Archived</option>
+                      </select>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedCandidate(app)}
+                        icon={<Eye className="w-3.5 h-3.5" />}
+                        className="text-xs"
+                      >
+                        Details
+                      </Button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-stone-100 dark:border-stone-800">
-                    <div className="text-right">
-                      <span className="text-xs font-mono font-bold text-[#0F766E] dark:text-teal-400">
-                        {app.matchScore}% Match
-                      </span>
-                    </div>
-
-                    <select
-                      value={app.status}
-                      onChange={e => updateCandidateStatus(app.id, e.target.value as any)}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#0F766E]"
-                    >
-                      <option value="applied">Applied (New)</option>
-                      <option value="screening">Screening</option>
-                      <option value="interview">Interview</option>
-                      <option value="offer">Offer Extended</option>
-                      <option value="archived">Archived</option>
-                    </select>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedCandidate(app)}
-                      icon={<Eye className="w-3.5 h-3.5" />}
-                      className="text-xs"
-                    >
-                      Details
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1282,6 +1189,16 @@ export const RecruiterDashboardPage: React.FC = () => {
                 Move candidates through evaluation stages and record assessment feedback.
               </p>
             </div>
+
+            {candidates.length === 0 && (
+              <div className="p-8 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-dashed border-stone-200 dark:border-stone-800 text-center space-y-2">
+                <Users className="w-8 h-8 mx-auto text-stone-400" />
+                <h3 className="text-xs font-bold text-stone-900 dark:text-white font-display">No candidates yet</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
+                  Applications submitted by verified job seekers will appear here in the hiring pipeline.
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
               {[
@@ -1373,7 +1290,7 @@ export const RecruiterDashboardPage: React.FC = () => {
 
                       {colCandidates.length === 0 && (
                         <div className="p-6 rounded-xl border border-dashed border-stone-200 dark:border-stone-800 text-center text-xs text-stone-400">
-                          No candidates in this stage
+                          No candidates yet
                         </div>
                       )}
                     </div>
@@ -1524,7 +1441,9 @@ export const RecruiterDashboardPage: React.FC = () => {
                 <div className="flex items-start justify-between border-b border-stone-100 dark:border-stone-800 pb-3">
                   <div>
                     <h3 className="text-base font-bold font-display">{selectedCandidate.name}</h3>
-                    <p className="text-stone-500 dark:text-stone-400">{selectedCandidate.role} • {selectedCandidate.experienceYears} yrs exp</p>
+                    <p className="text-stone-500 dark:text-stone-400">
+                      {selectedCandidate.role}{selectedCandidate.experienceYears ? ` • ${selectedCandidate.experienceYears} yrs exp` : ''}
+                    </p>
                   </div>
                   <button onClick={() => setSelectedCandidate(null)} className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-white">
                     <X className="w-5 h-5" />
@@ -1535,39 +1454,43 @@ export const RecruiterDashboardPage: React.FC = () => {
                   <div className="flex items-center justify-between p-3 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800">
                     <div>
                       <span className="text-[11px] text-teal-800 dark:text-teal-300 font-medium">Competency Alignment</span>
-                      <p className="font-bold text-sm text-[#0F766E] dark:text-teal-400 font-mono">{selectedCandidate.matchScore}% Match Score</p>
+                      <p className="font-bold text-sm text-[#0F766E] dark:text-teal-400 font-mono">{selectedCandidate.matchScore || 0}% Match Score</p>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                      Verified by ATS
+                      Verified Competencies
                     </span>
                   </div>
 
                   <div>
                     <span className="font-semibold text-stone-700 dark:text-stone-300 block mb-1">Professional Summary:</span>
                     <p className="text-stone-600 dark:text-stone-300 leading-relaxed bg-stone-50 dark:bg-stone-900 p-3 rounded-xl border border-stone-200/60 dark:border-stone-800">
-                      {selectedCandidate.bio}
+                      {selectedCandidate.bio || 'No profile summary provided.'}
                     </p>
                   </div>
 
                   <div>
                     <span className="font-semibold text-stone-700 dark:text-stone-300 block mb-1">Verified Skills:</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {selectedCandidate.skills.map((s, idx) => (
-                        <span key={idx} className="px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 font-mono text-[10px]">
-                          ✓ {s}
-                        </span>
-                      ))}
+                      {selectedCandidate.skills && selectedCandidate.skills.length > 0 ? (
+                        selectedCandidate.skills.map((s, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 font-mono text-[10px]">
+                            ✓ {s}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-stone-400 text-xs italic">No skills specified</span>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800">
                       <span className="text-[10px] text-stone-400 block">Email</span>
-                      <span className="font-medium text-stone-800 dark:text-stone-200">{selectedCandidate.email}</span>
+                      <span className="font-medium text-stone-800 dark:text-stone-200">{selectedCandidate.email || 'N/A'}</span>
                     </div>
                     <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800">
                       <span className="text-[10px] text-stone-400 block">Phone</span>
-                      <span className="font-medium text-stone-800 dark:text-stone-200">{selectedCandidate.phone}</span>
+                      <span className="font-medium text-stone-800 dark:text-stone-200">{selectedCandidate.phone || 'N/A'}</span>
                     </div>
                   </div>
 

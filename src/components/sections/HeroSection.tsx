@@ -111,7 +111,7 @@ export const HeroSection: React.FC = () => {
               className="relative pl-5 sm:pl-6 border-l-2 border-emerald-600 dark:border-emerald-500/40 max-w-2xl"
             >
               <p className="text-base sm:text-lg lg:text-xl text-stone-700 dark:text-[#B9C4BC] font-serif-editorial italic leading-relaxed">
-                “An AI-powered career platform helping students and job seekers build skills, create better resumes, find opportunities, and grow their careers.”
+                “An AI-powered career platform helping students and job seekers identify skill gaps, improve their resumes, discover opportunities, and plan their career growth.”
               </p>
             </motion.div>
 
