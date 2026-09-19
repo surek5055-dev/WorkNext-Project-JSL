@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { ThemeMode, Language, FontSize, UserProfile, Job, NotificationItem, ResumeAnalysisData } from '../types';
+import { ThemeMode, Language, FontSize, UserProfile, UserRole, AdminUser, Job, NotificationItem, ResumeAnalysisData } from '../types';
 import { mockCurrentUser, mockJobs, mockNotifications } from '../data/mockData';
 
 interface AppContextType {
@@ -18,8 +18,13 @@ interface AppContextType {
   toggleHighContrast: () => void;
   
   isLoggedIn: boolean;
-  login: (email?: string, name?: string) => void;
+  login: (email?: string, name?: string, id?: string, role?: UserRole, token?: string) => void;
   logout: () => void;
+  
+  adminUser: AdminUser | null;
+  isAdminLoggedIn: boolean;
+  adminLogin: (admin: AdminUser, token?: string) => void;
+  adminLogout: () => void;
   
   user: UserProfile;
   setUser: React.Dispatch<React.SetStateAction<UserProfile>>;
@@ -192,15 +197,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Clean out any legacy mock data from previous sessions
+        // Clean out any legacy mock data or unverified/generated readiness scores (like 88 or 94)
         if (
           parsed.name === 'Alex Morgan' ||
           parsed.location === 'Chicago, IL' ||
           parsed.title === 'Full Stack Engineer & AI Specialist' ||
-          parsed.readinessScore === 88
+          parsed.readinessScore === 88 ||
+          parsed.readinessScore === 94 ||
+          (!parsed.hasAnalyzedResume && parsed.readinessScore > 0)
         ) {
-          localStorage.removeItem('worknext_user_profile');
-          return mockCurrentUser;
+          parsed.readinessScore = 0;
+          if (parsed.name === 'Alex Morgan') {
+            localStorage.removeItem('worknext_user_profile');
+            return mockCurrentUser;
+          }
         }
         // Ensure default properties exist
         return {
@@ -223,14 +233,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [user]);
 
-  const login = (email?: string, name?: string) => {
+  const login = (email?: string, name?: string, id?: string, role?: UserRole, token?: string) => {
     setIsLoggedIn(true);
     localStorage.setItem('worknext_is_logged_in', 'true');
+    if (token) {
+      localStorage.setItem('worknext_supabase_token', token);
+    }
     setUser(prev => {
       const updated: UserProfile = {
         ...prev,
+        id: id || prev.id || ('user_' + Date.now()),
         name: name ? name.trim() : (prev.name || (email ? email.split('@')[0] : '')),
         email: email ? email.trim() : (prev.email || ''),
+        role: role || prev.role || 'jobseeker',
+        supabaseToken: token || prev.supabaseToken,
       };
       return updated;
     });
@@ -239,6 +255,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const logout = () => {
     setIsLoggedIn(false);
     localStorage.setItem('worknext_is_logged_in', 'false');
+    localStorage.removeItem('worknext_supabase_token');
+  };
+
+  // Admin authentication state & persistence
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(() => {
+    try {
+      const stored = localStorage.getItem('worknext_admin_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const isAdminLoggedIn = Boolean(adminUser && adminUser.role === 'admin');
+
+  const adminLogin = (admin: AdminUser, token?: string) => {
+    setAdminUser(admin);
+    localStorage.setItem('worknext_admin_user', JSON.stringify(admin));
+    if (token) {
+      localStorage.setItem('worknext_admin_token', token);
+    }
+  };
+
+  const adminLogout = () => {
+    setAdminUser(null);
+    localStorage.removeItem('worknext_admin_user');
+    localStorage.removeItem('worknext_admin_token');
   };
 
   const [isAnalyzingResume, setIsAnalyzingResume] = useState(false);
@@ -396,31 +439,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAnalysisError(null);
   };
 
-  const [jobs, setJobs] = useState<Job[]>(() => {
-    try {
-      const saved = localStorage.getItem('worknext_jobs');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to read jobs from localStorage', e);
-    }
-    return mockJobs;
-  });
+  const [jobs, setJobs] = useState<Job[]>([]);
 
-  // Keep jobs synced in localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('worknext_jobs', JSON.stringify(jobs));
-    } catch (e) {
-      console.error('Failed to persist jobs to localStorage', e);
-    }
-  }, [jobs]);
-
-  // Load real jobs from backend on initial mount and sync
+  // Load real jobs from backend on initial mount
   useEffect(() => {
     const fetchBackendJobs = async () => {
       try {
@@ -428,18 +449,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.jobs)) {
-            if (data.jobs.length > 0) {
-              setJobs(data.jobs);
-            } else if (jobs.length > 0) {
-              // Sync local jobs up to the backend store
-              for (const j of jobs) {
-                await fetch('/api/jobs', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(j),
-                }).catch(() => {});
-              }
-            }
+            setJobs(data.jobs);
           }
         }
       } catch (err) {
@@ -450,11 +460,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const addJob = async (job: Job) => {
+    // Enforce role-based access: only recruiters, employers, or admins can post openings
+    if (user.role !== 'recruiter' && (user.role as string) !== 'employer' && user.role !== 'admin' && !isAdminLoggedIn) {
+      console.warn('Unauthorized: Only recruiter or employer accounts can post job openings.');
+      return;
+    }
     setJobs(prev => [job, ...prev]);
     try {
       await fetch('/api/jobs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': user.role || 'jobseeker',
+        },
         body: JSON.stringify(job),
       });
     } catch (err) {
@@ -574,6 +592,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isLoggedIn,
         login,
         logout,
+        adminUser,
+        isAdminLoggedIn,
+        adminLogin,
+        adminLogout,
         user,
         setUser,
         uploadResume,

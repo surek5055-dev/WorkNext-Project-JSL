@@ -83,9 +83,9 @@ export const JobDiscoveryPreviewSection: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {filteredJobs.map((job) => (
+            {filteredJobs.map((job, idx) => (
               <motion.div
-                key={job.id}
+                key={job.id ? `${job.id}-${idx}` : `job-prev-${idx}`}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}

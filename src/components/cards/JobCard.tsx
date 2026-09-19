@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Job } from '../../types';
 import { Button } from '../ui/Button';
-import { MapPin, DollarSign, Sparkles, Bookmark, BookmarkCheck, Users, Clock, CheckCircle2 } from 'lucide-react';
+import { MapPin, DollarSign, Sparkles, Bookmark, BookmarkCheck, Users, Clock, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 interface JobCardProps {
@@ -34,9 +34,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
     <motion.div
       whileHover={{ y: -3 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs hover:shadow-md transition-all relative flex flex-col justify-between group overflow-hidden"
+      className="h-full w-full p-6 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs hover:shadow-md transition-all relative flex flex-col justify-between group overflow-hidden"
     >
-      <div>
+      <div className="flex-1 flex flex-col">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             {job.companyLogo ? (
@@ -128,28 +128,62 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
       </div>
 
       {/* Card Footer Actions */}
-      <div className="pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[11px] text-stone-400 font-sans">
-          <Clock className="w-3.5 h-3.5" />
-          <span>{job.postedDate}</span>
+      <div className="pt-4 mt-auto border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[11px] text-stone-400 font-sans min-w-0">
+          <Clock className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{job.postedDate}</span>
           <span>•</span>
-          <Users className="w-3.5 h-3.5" />
-          <span>{job.applicantsCount} applicants</span>
+          <Users className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{job.applicantsCount} applicants</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 ml-auto">
           {onSelect && (
-            <Button variant="ghost" size="sm" onClick={() => onSelect(job)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onSelect(job)}
+              className="h-9 px-3 text-xs whitespace-nowrap shrink-0"
+            >
               Details
             </Button>
           )}
 
           {isApplied ? (
-            <Button variant="outline" size="sm" disabled className="text-[#0F766E] border-teal-200 bg-teal-50">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Applied
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="text-[#0F766E] border-teal-200 bg-teal-50 flex items-center justify-center min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" /> Applied
             </Button>
+          ) : job.applyUrl ? (
+            <a
+              href={job.applyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                applyForJob(job.id);
+              }}
+              className="inline-flex shrink-0"
+            >
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center justify-center gap-1.5 min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
+              >
+                Apply Now <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+              </Button>
+            </a>
           ) : (
-            <Button variant="primary" size="sm" onClick={() => applyForJob(job.id)} className="bg-[#0F766E] hover:bg-[#0D655E]">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => applyForJob(job.id)}
+              className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center justify-center min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
+            >
               Apply Now
             </Button>
           )}

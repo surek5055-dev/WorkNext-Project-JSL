@@ -7,7 +7,7 @@ import { JobCard } from '../components/cards/JobCard';
 import { JobFilterForm } from '../components/forms/JobFilterForm';
 import { PlaceholderCard } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
-import { Sparkles, X, CheckCircle2, Briefcase, FileText, ArrowRight, AlertCircle, Award } from 'lucide-react';
+import { Sparkles, X, CheckCircle2, Briefcase, FileText, ArrowRight, AlertCircle, Award, ExternalLink } from 'lucide-react';
 
 export interface LocalJobFinderPageProps {
   jobs?: Job[];
@@ -40,6 +40,9 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
   const [minMatchScore, setMinMatchScore] = useState(0);
 
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [adzunaJobs, setAdzunaJobs] = useState<Job[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAdzunaConfigured, setIsAdzunaConfigured] = useState<boolean | null>(null);
 
   // Extract real user skills, education, experience and target role from resume
   const candidateSkills = useMemo(() => {
@@ -53,10 +56,59 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
   const candidateRole = user.extractedProfile?.targetRole || user.title || '';
   const candidateExp = user.extractedProfile?.experienceYears ?? user.experienceYears ?? 0;
   const candidateEducation = user.extractedProfile?.education || [];
+  const candidateLocation = user.extractedProfile?.location || user.location || user.preferredLocation || '';
   const hasResumeAnalyzed = Boolean(user.hasAnalyzedResume && (candidateSkills.length > 0 || candidateRole));
 
+  // Query real jobs from Adzuna API using analyzed resume details and user filters
+  useEffect(() => {
+    let isMounted = true;
+    const fetchJobs = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch('/api/jobs/adzuna', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            skills: candidateSkills,
+            targetRole: candidateRole,
+            location: locationFilter || candidateLocation,
+            experienceYears: candidateExp,
+            searchQuery: searchQuery,
+            locationFilter: locationFilter,
+            isRemoteOnly: isRemoteOnly,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setIsAdzunaConfigured(Boolean(data.isConfigured));
+            if (Array.isArray(data.jobs)) {
+              setAdzunaJobs(data.jobs);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch jobs from Adzuna:', err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      fetchJobs();
+    }, 350);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [candidateSkills, candidateRole, candidateExp, candidateLocation, searchQuery, locationFilter, isRemoteOnly]);
+
   // Compute real match scores and rank matching job listings based on authentic candidate profile
-  const baseJobs = initialJobs || jobs;
+  const baseJobs = adzunaJobs !== null ? adzunaJobs : (initialJobs || jobs);
   const rankedJobs = useMemo(() => {
     if (baseJobs.length === 0) return [];
 
@@ -144,22 +196,25 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
   };
 
   const filteredJobs = rankedJobs.filter(job => {
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const titleMatch = job.title.toLowerCase().includes(q);
-      const companyMatch = job.company.toLowerCase().includes(q);
-      const reqMatch = job.requirements.some(r => r.toLowerCase().includes(q));
-      if (!titleMatch && !companyMatch && !reqMatch) return false;
-    }
+    // Only apply client-side text filtering if we are using the static fallback (adzunaJobs === null)
+    if (adzunaJobs === null) {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const titleMatch = job.title.toLowerCase().includes(q);
+        const companyMatch = job.company.toLowerCase().includes(q);
+        const reqMatch = job.requirements.some(r => r.toLowerCase().includes(q));
+        if (!titleMatch && !companyMatch && !reqMatch) return false;
+      }
 
-    if (locationFilter.trim()) {
-      if (!job.location.toLowerCase().includes(locationFilter.toLowerCase())) return false;
+      if (locationFilter.trim()) {
+        if (!job.location.toLowerCase().includes(locationFilter.toLowerCase())) return false;
+      }
     }
 
     if (selectedType && job.type !== selectedType) return false;
     if (selectedExp && job.experienceLevel !== selectedExp) return false;
     if (isRemoteOnly && !job.isRemote) return false;
-    if (minMatchScore > 0 && job.matchScore < minMatchScore) return false;
+    if (minMatchScore > 0 && (job.matchScore || 0) < minMatchScore) return false;
 
     return true;
   });
@@ -304,25 +359,43 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
         </div>
 
         {/* Jobs List */}
-        {rankedJobs.length === 0 ? (
+        {isLoading ? (
+          <div className="p-12 rounded-[24px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 text-center space-y-4 max-w-2xl mx-auto shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-[#0F766E] dark:text-teal-400 flex items-center justify-center mx-auto animate-pulse">
+              <Sparkles className="w-6 h-6 animate-spin" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-stone-900 dark:text-white font-display">
+                Searching Real Jobs from Adzuna...
+              </h3>
+              <p className="text-xs text-stone-500 dark:text-stone-400 font-sans max-w-md mx-auto">
+                {candidateRole || candidateSkills.length > 0
+                  ? `Filtering positions matching "${candidateRole || candidateSkills.slice(0, 3).join(', ')}" and calculating match scores.`
+                  : 'Retrieving live job listings and open positions.'}
+              </p>
+            </div>
+          </div>
+        ) : isAdzunaConfigured === false && rankedJobs.length === 0 ? (
           <div className="p-12 rounded-[24px] bg-white dark:bg-[#1A1A1A] border border-dashed border-stone-200 dark:border-stone-800 text-center space-y-4 max-w-2xl mx-auto shadow-xs">
             <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-200/60 dark:border-amber-800/40">
               <Briefcase className="w-7 h-7" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-lg font-bold text-stone-900 dark:text-white font-display">No job data source connected</h3>
+              <h3 className="text-lg font-bold text-stone-900 dark:text-white font-display">Adzuna Jobs API Credentials Required</h3>
               <p className="text-xs text-stone-500 dark:text-stone-400 font-sans max-w-md mx-auto">
-                No external job board API or live job feed is currently connected. To view real matching jobs, employers and recruiters can post verified openings via the Recruiter Portal, or connect a live workforce API integration.
+                To stream real matching jobs and calculate genuine candidate match scores, configure the server environment variables <code className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-mono text-[11px] text-stone-800 dark:text-stone-200">ADZUNA_APP_ID</code> and <code className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-mono text-[11px] text-stone-800 dark:text-stone-200">ADZUNA_APP_KEY</code>.
               </p>
             </div>
-            <div className="pt-2 flex flex-wrap items-center justify-center gap-3 font-sans">
-              <a href="/recruiter">
-                <Button variant="primary" size="sm" className="bg-[#0F766E] hover:bg-[#0D655E]">
-                  Post an Opening in Recruiter Portal
-                </Button>
-              </a>
-            </div>
           </div>
+        ) : rankedJobs.length === 0 ? (
+          <PlaceholderCard
+            title="Adzuna Jobs Portal"
+            placeholderText="No matching jobs found on Adzuna."
+            description="No real job postings found for your current skills, role, or location criteria. Try widening your search keywords or removing location filters."
+            icon={<Briefcase className="w-6 h-6" />}
+            actionText="Reset Search Filters"
+            onAction={handleReset}
+          />
         ) : filteredJobs.length === 0 ? (
           <PlaceholderCard
             title="Jobs Search Portal"
@@ -334,8 +407,8 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredJobs.map(job => (
-              <div key={job.id} className="relative">
+            {filteredJobs.map((job, idx) => (
+              <div key={job.id ? `${job.id}-${idx}` : `job-${idx}`} className="relative h-full flex flex-col">
                 <JobCard job={job} onSelect={j => setSelectedJob(j)} />
               </div>
             ))}
@@ -430,6 +503,18 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
                     <Button variant="outline" size="md" disabled className="text-[#0F766E] border-teal-200 bg-teal-50">
                       <CheckCircle2 className="w-4 h-4" /> Application Submitted
                     </Button>
+                  ) : selectedJob.applyUrl ? (
+                    <a
+                      href={selectedJob.applyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => applyForJob(selectedJob.id)}
+                      className="inline-flex"
+                    >
+                      <Button variant="primary" size="md" className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center gap-2">
+                        Apply on Employer Site <ExternalLink className="w-4 h-4" />
+                      </Button>
+                    </a>
                   ) : (
                     <Button variant="primary" size="md" onClick={() => applyForJob(selectedJob.id)} className="bg-[#0F766E] hover:bg-[#0D655E]">
                       Submit Direct Application

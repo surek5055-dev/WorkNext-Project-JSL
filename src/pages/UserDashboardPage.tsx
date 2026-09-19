@@ -56,8 +56,8 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
   const appliedJobsCount = appliedJobIds.length;
 
   const hasSufficientData = hasSufficientProfileData(user);
-  const displayReadiness = user.readinessScore && user.readinessScore > 0 ? user.readinessScore : null;
-  const displayScore = user.atsScore && user.atsScore > 0 ? user.atsScore : null;
+  const displayReadiness = user.hasAnalyzedResume && user.readinessScore && user.readinessScore > 0 ? user.readinessScore : null;
+  const displayScore = user.hasAnalyzedResume && user.atsScore && user.atsScore > 0 ? user.atsScore : null;
 
   // Filter jobs based on user skills if available, or default to latest listings
   const recommendedJobs = jobs.filter(job => {
@@ -90,7 +90,7 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
               ) : (
                 <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 text-xs font-semibold border border-stone-200 dark:border-stone-700">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-                  Readiness Score: Pending Profile Data
+                  Readiness Score: Pending data
                 </span>
               )}
             </div>
@@ -268,8 +268,8 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {recommendedJobs.map(job => (
-                  <JobCard key={job.id} job={job} compact />
+                {recommendedJobs.map((job, idx) => (
+                  <JobCard key={job.id ? `${job.id}-${idx}` : `rec-job-${idx}`} job={job} compact />
                 ))}
               </div>
             </div>

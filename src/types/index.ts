@@ -1,7 +1,16 @@
 export type Language = 'en' | 'es' | 'fr' | 'de' | 'hi';
 export type ThemeMode = 'light' | 'dark';
 export type FontSize = 'normal' | 'large' | 'extralarge';
-export type UserRole = 'jobseeker' | 'recruiter';
+export type UserRole = 'jobseeker' | 'recruiter' | 'admin';
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin';
+  token?: string;
+  lastLogin?: string;
+}
 
 export interface SkillGapItem {
   skill: string;
@@ -61,6 +70,7 @@ export interface UserProfile {
   location: string;
   avatar: string;
   bio: string;
+  company?: string;
   phone?: string;
   website?: string;
   skills: string[];
@@ -83,6 +93,9 @@ export interface UserProfile {
   interviewFeedback?: string | null;
   detailedAnalysis?: ResumeAnalysisData | null;
   extractedProfile?: ExtractedCandidateProfile | null;
+  mentorStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  mentorId?: string;
+  supabaseToken?: string;
 }
 
 export const hasSufficientProfileData = (user: UserProfile | null | undefined): boolean => {
@@ -113,6 +126,7 @@ export interface Job {
   featured?: boolean;
   applicantsCount: number;
   experienceLevel: 'Entry-Level' | 'Mid-Level' | 'Senior' | 'Executive';
+  applyUrl?: string; // Real apply URL from Adzuna / employer
 }
 
 export interface ResumeSectionExperience {
@@ -149,17 +163,21 @@ export interface Resume {
 
 export interface Mentor {
   id: string;
+  userId?: string;
+  userEmail?: string;
   name: string;
   role: string;
-  company: string;
-  avatar: string;
-  rating: number;
-  reviewCount: number;
+  company?: string;
+  avatar?: string;
+  rating?: number;
+  reviewCount?: number;
   specialties: string[];
-  hourlyRate: string;
-  availability: string;
-  bio: string;
-  sessionsCompleted: number;
+  hourlyRate?: string;
+  availability?: string;
+  bio?: string;
+  sessionsCompleted?: number;
+  status?: 'pending' | 'approved' | 'rejected';
+  createdAt?: string;
 }
 
 export interface NotificationItem {
@@ -180,6 +198,68 @@ export interface EmploymentStat {
   avgSalaryGrowth: number;
   topSkillsInDemand: { name: string; count: number; growth: string }[];
   hiringTrends: { month: string; openings: number; placements: number }[];
+}
+
+export interface CompetencyStat {
+  name: string;
+  category: string;
+  count: number;
+  percentage: number;
+}
+
+export interface MonthlySalaryPoint {
+  month: string;
+  formattedMonth: string;
+  avgSalaryInr: number;
+}
+
+export interface MospiUnemploymentPoint {
+  month: string;
+  rate: number;
+}
+
+export interface RegionalHubStat {
+  region: string;
+  count: number;
+}
+
+export interface RealMarketInsights {
+  region: string;
+  unemploymentRate: {
+    value: number;
+    previousValue: number;
+    urbanRate: number;
+    ruralRate: number;
+    lfpr: number;
+    wpr: number;
+    annualRate: number;
+    youthRate: number;
+    source: string;
+    period: string;
+  };
+  underemploymentIndex: {
+    value: number | null;
+    displayText: string;
+    note: string;
+    source: string;
+  };
+  activeListings: {
+    count: number;
+    source: string;
+    fetchedAt: string;
+  };
+  wageGrowth: {
+    yoyPercentage: number;
+    currentAvgSalaryInr: number;
+    previousYearAvgSalaryInr: number;
+    period: string;
+    source: string;
+  };
+  topCompetencies: CompetencyStat[];
+  salaryTimeline: MonthlySalaryPoint[];
+  unemploymentTimeline: MospiUnemploymentPoint[];
+  regionalHubs: RegionalHubStat[];
+  lastUpdated: string;
 }
 
 export interface Testimonial {

@@ -18,51 +18,75 @@ export const MentorCard: React.FC<MentorCardProps> = ({ mentor, onBook }) => {
     >
       <div>
         <div className="flex items-start gap-4 mb-4">
-          <div className="relative">
-            <img
-              src={mentor.avatar}
-              alt={mentor.name}
-              className="w-14 h-14 rounded-2xl object-cover border border-stone-200 dark:border-stone-800 shrink-0 group-hover:scale-105 transition-transform"
-            />
+          <div className="relative shrink-0">
+            {mentor.avatar ? (
+              <img
+                src={mentor.avatar}
+                alt={mentor.name}
+                className="w-14 h-14 rounded-2xl object-cover border border-stone-200 dark:border-stone-800 group-hover:scale-105 transition-transform"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 flex items-center justify-center text-base font-bold text-[#0F766E] dark:text-teal-400 group-hover:scale-105 transition-transform">
+                {mentor.name.slice(0, 2).toUpperCase()}
+              </div>
+            )}
             <CheckCircle className="w-4 h-4 text-[#0F766E] dark:text-teal-400 fill-white dark:fill-stone-900 absolute -bottom-1 -right-1" />
           </div>
           <div>
             <h3 className="font-bold text-stone-900 dark:text-white text-base font-display">{mentor.name}</h3>
             <p className="text-xs text-[#0F766E] dark:text-teal-400 font-semibold font-sans mt-0.5">{mentor.role}</p>
-            <p className="text-xs text-stone-500 dark:text-stone-400 font-sans">{mentor.company}</p>
+            {mentor.company && (
+              <p className="text-xs text-stone-500 dark:text-stone-400 font-sans">{mentor.company}</p>
+            )}
             
-            <div className="flex items-center gap-1.5 mt-1.5 text-xs text-amber-500 font-sans font-bold">
-              <Star className="w-3.5 h-3.5 fill-current" />
-              <span>{mentor.rating}</span>
-              <span className="text-stone-400 font-normal">({mentor.reviewCount} reviews)</span>
-            </div>
+            {mentor.rating !== undefined && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-xs text-amber-500 font-sans font-bold">
+                <Star className="w-3.5 h-3.5 fill-current" />
+                <span>{mentor.rating}</span>
+                {mentor.reviewCount !== undefined && (
+                  <span className="text-stone-400 font-normal">({mentor.reviewCount} reviews)</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <p className="text-xs text-stone-600 dark:text-stone-300 line-clamp-3 mb-4 leading-relaxed font-sans font-normal">
-          {mentor.bio}
-        </p>
+        {mentor.bio && (
+          <p className="text-xs text-stone-600 dark:text-stone-300 line-clamp-3 mb-4 leading-relaxed font-sans font-normal">
+            {mentor.bio}
+          </p>
+        )}
 
         {/* Specialties */}
-        <div className="flex flex-wrap gap-1.5 mb-4 font-sans">
-          {mentor.specialties.map((spec, i) => (
-            <span
-              key={i}
-              className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700"
-            >
-              {spec}
-            </span>
-          ))}
-        </div>
+        {mentor.specialties && mentor.specialties.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-4 font-sans">
+            {mentor.specialties.map((spec, i) => (
+              <span
+                key={i}
+                className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700"
+              >
+                {spec}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Footer info & Booking */}
       <div className="pt-4 border-t border-stone-100 dark:border-stone-800">
         <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 mb-4 font-sans">
-          <span className="flex items-center gap-1.5 font-semibold text-stone-700 dark:text-stone-300">
-            <Award className="w-3.5 h-3.5 text-[#0F766E] dark:text-teal-400" /> {mentor.sessionsCompleted} sessions
-          </span>
-          <span className="font-extrabold text-[#0F766E] dark:text-teal-400 text-sm font-display">{mentor.hourlyRate}</span>
+          {mentor.sessionsCompleted !== undefined ? (
+            <span className="flex items-center gap-1.5 font-semibold text-stone-700 dark:text-stone-300">
+              <Award className="w-3.5 h-3.5 text-[#0F766E] dark:text-teal-400" /> {mentor.sessionsCompleted} sessions
+            </span>
+          ) : (
+            <span className="text-stone-400 dark:text-stone-500 text-[11px] font-sans">
+              Verified Mentor
+            </span>
+          )}
+          {mentor.hourlyRate && (
+            <span className="font-extrabold text-[#0F766E] dark:text-teal-400 text-sm font-display">{mentor.hourlyRate}</span>
+          )}
         </div>
 
         <Button

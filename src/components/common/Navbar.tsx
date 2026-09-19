@@ -19,6 +19,9 @@ export const Navbar: React.FC = () => {
     theme,
     toggleTheme,
     isLoggedIn,
+    user,
+    adminUser,
+    isAdminLoggedIn,
     unreadCount,
     setNotificationsOpen,
     t
@@ -27,16 +30,38 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
-  const navLinks = [
+  const isRecruiter = isLoggedIn && (user?.role === 'recruiter' || (user?.role as string) === 'employer');
+  const isAdmin = isAdminLoggedIn || user?.role === 'admin' || adminUser?.role === 'admin';
+
+  const recruiterNavLinks = [
+    { name: 'Recruiter Dashboard', path: '/recruiter?tab=dashboard' },
+    { name: 'Post Jobs', path: '/recruiter?tab=post' },
+    { name: 'Active Openings', path: '/recruiter?tab=openings' },
+    { name: 'Matched Candidates', path: '/recruiter?tab=candidates' },
+    { name: 'Applications', path: '/recruiter?tab=applications' },
+    { name: 'Candidate Management', path: '/recruiter?tab=management' },
+    { name: 'Recruiter Profile', path: '/recruiter?tab=profile' },
+  ];
+
+  const standardNavLinks = [
     { name: t('nav.home'), path: '/' },
     { name: t('nav.jobs'), path: '/jobs' },
     { name: t('nav.resume'), path: '/resume' },
     { name: t('nav.insights'), path: '/insights' },
     { name: t('nav.community'), path: '/community' },
-    { name: t('nav.recruiter'), path: '/recruiter' },
+    ...(isAdmin ? [{ name: 'Admin Console', path: '/admin/dashboard' }] : []),
   ];
 
+  const navLinks = isRecruiter ? recruiterNavLinks : standardNavLinks;
+
   const isActive = (path: string) => {
+    if (isRecruiter) {
+      if (location.pathname !== '/recruiter') return false;
+      const urlParams = new URLSearchParams(location.search);
+      const currentTab = urlParams.get('tab') || 'dashboard';
+      const itemTab = path.includes('?tab=') ? path.split('?tab=')[1] : 'dashboard';
+      return currentTab === itemTab;
+    }
     if (path === '/' && location.pathname === '/') return true;
     if (path !== '/' && location.pathname.startsWith(path)) return true;
     return false;
@@ -47,7 +72,7 @@ export const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20 gap-4">
           {/* Brand Logo */}
-          <Link to="/" id="brand-header-logo" className="flex items-center gap-3 shrink-0 group">
+          <Link to={isRecruiter ? '/recruiter' : '/'} id="brand-header-logo" className="flex items-center gap-3 shrink-0 group">
             <WNMonogramIcon className="w-10 h-10 sm:w-11 sm:h-11" />
             <div>
               <span className="text-xl sm:text-2xl font-black tracking-tight text-stone-900 dark:text-white font-display">

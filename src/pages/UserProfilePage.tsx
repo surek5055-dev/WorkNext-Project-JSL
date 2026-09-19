@@ -41,12 +41,11 @@ export const UserProfilePage: React.FC = () => {
     const hasBasic = Boolean(formData.title.trim() && updatedSkills.length > 0 && formData.location.trim());
     const hasResume = Boolean(user.resumeFileName?.trim());
     
-    let newReadiness = user.readinessScore;
-    if (hasBasic && hasResume) {
-      newReadiness = Math.min(94, 60 + Math.min(updatedSkills.length, 6) * 5 + (user.atsScore ? Math.round(user.atsScore * 0.1) : 0));
-    } else {
-      newReadiness = 0;
-    }
+    // Only display values returned from real connected APIs or the user's actual AI/resume analysis.
+    // Do not invent or generate readiness scores.
+    const newReadiness = (user.hasAnalyzedResume && user.detailedAnalysis?.readinessScore)
+      ? user.detailedAnalysis.readinessScore
+      : (user.hasAnalyzedResume && user.readinessScore ? user.readinessScore : 0);
 
     setUser(prev => ({
       ...prev,
@@ -59,7 +58,7 @@ export const UserProfilePage: React.FC = () => {
   };
 
   const isProfileComplete = hasSufficientProfileData(user);
-  const showReadiness = isProfileComplete && user.readinessScore > 0;
+  const showReadiness = Boolean(user.hasAnalyzedResume && user.readinessScore && user.readinessScore > 0);
 
   return (
     <DashboardLayout>
@@ -114,9 +113,9 @@ export const UserProfilePage: React.FC = () => {
               </>
             ) : (
               <div className="mt-1 space-y-1">
-                <p className="text-sm font-bold text-stone-600 dark:text-stone-300">Not available yet</p>
+                <p className="text-2xl font-extrabold text-stone-900 dark:text-white font-display">--</p>
                 <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-tight">
-                  Complete your profile and upload your resume to see your readiness score.
+                  Pending data
                 </p>
               </div>
             )}

@@ -13,17 +13,40 @@ export const SignUpPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !name) return;
+    if (!email || !name || !password) return;
     setLoading(true);
-    setTimeout(() => {
-      login(email, name.trim());
-      setLoading(false);
+    setErrorMsg('');
+
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name, role }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to sign up with Supabase');
+      }
+
+      login(
+        data.user.email,
+        data.user.name,
+        data.user.id,
+        data.user.role,
+        data.session?.access_token
+      );
       navigate('/dashboard');
-    }, 500);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to create account. Please check your details.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -63,6 +86,11 @@ export const SignUpPage: React.FC = () => {
           </div>
 
           <form onSubmit={handleSignUp} className="space-y-4">
+            {errorMsg && (
+              <div className="p-3 text-xs rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                {errorMsg}
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Full Name

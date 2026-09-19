@@ -14,9 +14,16 @@ import { ResumeBuilderPage } from './pages/ResumeBuilderPage';
 import { LocalJobFinderPage } from './pages/LocalJobFinderPage';
 import { EmploymentDashboardPage } from './pages/EmploymentDashboardPage';
 import { CommunityMentorshipPage } from './pages/CommunityMentorshipPage';
+import { JobSeekerRoute } from './components/auth/JobSeekerRoute';
 
-// Recruiter Pages
+// Recruiter Pages & RBAC Guard
 import { RecruiterDashboardPage } from './pages/RecruiterDashboardPage';
+import { RecruiterProtectedRoute } from './components/auth/RecruiterProtectedRoute';
+
+// Admin Pages & RBAC Guard
+import { AdminLoginPage } from './pages/AdminLoginPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { AdminProtectedRoute } from './components/auth/AdminProtectedRoute';
 
 // System Pages
 import { SettingsPage } from './pages/SettingsPage';
@@ -32,20 +39,39 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
 
-          {/* User Routes */}
-          <Route path="/dashboard" element={<UserDashboardPage />} />
-          <Route path="/profile" element={<UserProfilePage />} />
-          <Route path="/resume" element={<ResumeBuilderPage />} />
-          <Route path="/jobs" element={<LocalJobFinderPage />} />
-          <Route path="/insights" element={<EmploymentDashboardPage />} />
-          <Route path="/community" element={<CommunityMentorshipPage />} />
+          {/* User Routes (Restricted for Recruiters) */}
+          <Route path="/dashboard" element={<JobSeekerRoute><UserDashboardPage /></JobSeekerRoute>} />
+          <Route path="/profile" element={<JobSeekerRoute><UserProfilePage /></JobSeekerRoute>} />
+          <Route path="/resume" element={<JobSeekerRoute><ResumeBuilderPage /></JobSeekerRoute>} />
+          <Route path="/jobs" element={<JobSeekerRoute><LocalJobFinderPage /></JobSeekerRoute>} />
+          <Route path="/insights" element={<JobSeekerRoute><EmploymentDashboardPage /></JobSeekerRoute>} />
+          <Route path="/community" element={<JobSeekerRoute><CommunityMentorshipPage /></JobSeekerRoute>} />
 
-          {/* Recruiter Route */}
-          <Route path="/recruiter" element={<RecruiterDashboardPage />} />
+          {/* Recruiter Route with RBAC Protection */}
+          <Route
+            path="/recruiter"
+            element={
+              <RecruiterProtectedRoute>
+                <RecruiterDashboardPage />
+              </RecruiterProtectedRoute>
+            }
+          />
+
+          {/* Admin Routes with RBAC Protection */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <AdminProtectedRoute>
+                <AdminDashboardPage />
+              </AdminProtectedRoute>
+            }
+          />
 
           {/* System Routes */}
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/settings" element={<JobSeekerRoute><SettingsPage /></JobSeekerRoute>} />
+          <Route path="/notifications" element={<JobSeekerRoute><NotificationsPage /></JobSeekerRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

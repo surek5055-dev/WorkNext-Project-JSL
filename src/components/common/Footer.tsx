@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useApp } from '../../context/AppContext';
 import { WNMonogramIcon } from './WNMonogramIcon';
 import jslWorksLogo from '../../assets/images/WhatsApp_Image_2026-09-13_at_2.40.52_PM-removebg-preview.png';
-import { TrendingUp, Github, Twitter, Linkedin, CheckCircle2, ArrowRight } from 'lucide-react';
+import { TrendingUp, Github, Twitter, Linkedin, CheckCircle2, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 export const Footer: React.FC = () => {
+  const { user, isLoggedIn, adminUser, isAdminLoggedIn } = useApp();
   const [subscribed, setSubscribed] = useState(false);
   const [email, setEmail] = useState('');
+
+  const isRecruiter = isLoggedIn && (user?.role === 'recruiter' || (user?.role as string) === 'employer');
+  const isAdmin = isAdminLoggedIn || user?.role === 'admin' || adminUser?.role === 'admin';
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,8 +74,22 @@ export const Footer: React.FC = () => {
           <div>
             <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-stone-900 dark:text-stone-200 mb-5">Employers</h4>
             <ul className="space-y-3 text-xs text-stone-600 dark:text-stone-400">
-              <li><Link to="/recruiter" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Recruiter Dashboard</Link></li>
-              <li><Link to="/recruiter" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Post Openings</Link></li>
+              {isRecruiter ? (
+                <>
+                  <li><Link to="/recruiter" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Recruiter Dashboard</Link></li>
+                  <li><Link to="/recruiter" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Post Openings</Link></li>
+                </>
+              ) : isLoggedIn ? (
+                <>
+                  <li><Link to="/insights" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Industry Hiring Trends</Link></li>
+                  <li><Link to="/community" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Verified Mentor Network</Link></li>
+                </>
+              ) : (
+                <>
+                  <li><Link to="/login" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Employer Sign In</Link></li>
+                  <li><Link to="/signup" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Register as Recruiter</Link></li>
+                </>
+              )}
               <li><Link to="/insights" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Regional Wage Data</Link></li>
               <li><Link to="/community" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Apprenticeships</Link></li>
             </ul>
@@ -128,6 +147,12 @@ export const Footer: React.FC = () => {
             <Link to="/settings" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Accessibility</Link>
             <Link to="/settings" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Privacy Policy</Link>
             <Link to="/settings" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Terms of Service</Link>
+            {isAdmin && (
+              <Link to="/admin/dashboard" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <span>Admin Dashboard</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>
