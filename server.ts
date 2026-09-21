@@ -341,6 +341,7 @@ interface ServerJob {
   source?: 'worknext' | 'adzuna' | string;
   recruiterId?: string;
   recruiterEmail?: string;
+  status?: 'active' | 'closed';
 }
 
 const backendJobsStore: ServerJob[] = [];
@@ -362,9 +363,13 @@ interface ServerCandidate {
   appliedDate: string;
   notes?: string;
   rating?: number;
+  source?: 'WorkNext Recruiter' | 'Adzuna' | string;
+  recruiterId?: string;
+  recruiterEmail?: string;
 }
 
 const backendCandidatesStore: ServerCandidate[] = [];
+const backendAdzunaApplicationsStore: any[] = [];
 
 // Helper to strip HTML tags and decode basic HTML entities from Adzuna text
 function stripHtml(html: string = ''): string {
@@ -930,6 +935,7 @@ app.post('/api/jobs', async (req, res) => {
       source: 'worknext',
       recruiterId,
       recruiterEmail,
+      status: (jobData.status === 'closed' ? 'closed' : 'active') as 'active' | 'closed',
     };
 
     backendJobsStore.unshift(newJob);
@@ -957,7 +963,8 @@ app.post('/api/jobs', async (req, res) => {
           recruiter_id: newJob.recruiterId,
           recruiter_email: newJob.recruiterEmail,
           source: 'worknext',
-          posted_date: newJob.postedDate
+          posted_date: newJob.postedDate,
+          status: newJob.status,
         }]);
       } catch (dbErr: any) {
         console.warn('Supabase job insertion note:', dbErr.message);
@@ -972,7 +979,7 @@ app.post('/api/jobs', async (req, res) => {
 
 // GET /api/recruiter/jobs - returns recruiter-created openings from database
 // Supports ?recruiterId=... & ?recruiterEmail=... to return ONLY that recruiter's own posted jobs for Recruiter Dashboard
-// Supports ?public=true to return all verified recruiter-posted jobs for User Job Finder
+// Supports ?public=true to return all verified active recruiter-posted jobs for User Job Finder
 app.get('/api/recruiter/jobs', async (req, res) => {
   try {
     const recruiterId = String(req.query.recruiterId || req.headers['x-recruiter-id'] || '').trim();
@@ -1022,6 +1029,7 @@ app.get('/api/recruiter/jobs', async (req, res) => {
             source: 'worknext',
             recruiterId: row.recruiter_id || '',
             recruiterEmail: row.recruiter_email || '',
+            status: (row.status === 'closed' ? 'closed' : 'active') as 'active' | 'closed',
           }));
         }
       } catch (err: any) {
@@ -1053,6 +1061,11 @@ app.get('/api/recruiter/jobs', async (req, res) => {
       );
     }
 
+    // If public for the user job finder, strictly show only ACTIVE / OPEN jobs!
+    if (isPublic) {
+      jobs = jobs.filter(j => j.status !== 'closed');
+    }
+
     return res.json({
       success: true,
       jobs,
@@ -1060,6 +1073,47 @@ app.get('/api/recruiter/jobs', async (req, res) => {
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message, jobs: [] });
+  }
+});
+
+// PATCH /api/recruiter/jobs/:id/status - recruiter toggles active/closed status
+app.patch('/api/recruiter/jobs/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const recruiterId = String(req.query.recruiterId || req.headers['x-recruiter-id'] || '').trim();
+    const recruiterEmail = String(req.query.recruiterEmail || req.headers['x-recruiter-email'] || '').trim();
+
+    if (status !== 'active' && status !== 'closed') {
+      return res.status(400).json({ success: false, error: 'Status must be active or closed' });
+    }
+
+    const memJob = backendJobsStore.find(j => {
+      if (j.id !== id) return false;
+      if (recruiterId || recruiterEmail) {
+        return (recruiterId && j.recruiterId === recruiterId) || (recruiterEmail && j.recruiterEmail === recruiterEmail);
+      }
+      return true;
+    });
+
+    if (memJob) {
+      memJob.status = status;
+    }
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        let query = supabase.from('jobs').update({ status }).eq('id', id);
+        if (recruiterId) query = query.eq('recruiter_id', recruiterId);
+        await query;
+      } catch (err: any) {
+        console.warn('Supabase status update note:', err.message);
+      }
+    }
+
+    return res.json({ success: true, id, status });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1182,46 +1236,95 @@ app.post('/api/jobs/rank', (req, res) => {
 });
 
 // GET /api/recruiter/candidates - returns real applicants from Supabase or backend store (starts empty)
+// Recruiters must see applications ONLY for jobs they personally created
+// Adzuna jobs/applications are NEVER sent to the recruiter dashboard
 app.get('/api/recruiter/candidates', async (req, res) => {
   try {
+    const recruiterId = String(req.query.recruiterId || req.headers['x-recruiter-id'] || '').trim();
+    const recruiterEmail = String(req.query.recruiterEmail || req.headers['x-recruiter-email'] || '').trim();
+
+    // If no recruiter context provided, do not leak any applicants
+    if (!recruiterId && !recruiterEmail) {
+      return res.json({ success: true, candidates: [], total: 0 });
+    }
+
+    // Find all job IDs created by this recruiter
+    const ownJobIds = new Set(
+      backendJobsStore
+        .filter(j => (recruiterId && j.recruiterId === recruiterId) || (recruiterEmail && j.recruiterEmail === recruiterEmail))
+        .map(j => j.id)
+    );
+
     const supabase = getSupabaseClient();
     let candidates: ServerCandidate[] = [];
 
     if (supabase) {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('candidates')
           .select('*')
           .order('created_at', { ascending: false });
 
+        if (recruiterId && recruiterEmail) {
+          query = query.or(`recruiter_id.eq.${recruiterId},recruiter_email.eq.${recruiterEmail}`);
+        } else if (recruiterId) {
+          query = query.eq('recruiter_id', recruiterId);
+        } else if (recruiterEmail) {
+          query = query.eq('recruiter_email', recruiterEmail);
+        }
+
+        const { data, error } = await query;
+
         if (!error && Array.isArray(data) && data.length > 0) {
-          candidates = data.map((row: any) => ({
-            id: String(row.id),
-            name: row.name || 'Applicant',
-            role: row.role || row.target_role || 'Candidate',
-            location: row.location || '',
-            experienceYears: Number(row.experience_years || 0),
-            matchScore: Number(row.match_score || 0),
-            skills: Array.isArray(row.skills) ? row.skills : (row.skills ? String(row.skills).split(',').map((s: string) => s.trim()) : []),
-            email: row.email || '',
-            phone: row.phone || '',
-            bio: row.bio || '',
-            status: row.status || 'applied',
-            appliedJobTitle: row.applied_job_title || row.job_title || '',
-            appliedJobId: row.applied_job_id || row.job_id || '',
-            appliedDate: row.applied_date || (row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Just now'),
-            notes: row.notes || '',
-            rating: row.rating ? Number(row.rating) : undefined
-          }));
+          candidates = data
+            .filter((row: any) => row.source !== 'Adzuna')
+            .map((row: any) => ({
+              id: String(row.id),
+              name: row.name || 'Applicant',
+              role: row.role || row.target_role || 'Candidate',
+              location: row.location || '',
+              experienceYears: Number(row.experience_years || 0),
+              matchScore: Number(row.match_score || 0),
+              skills: Array.isArray(row.skills) ? row.skills : (row.skills ? String(row.skills).split(',').map((s: string) => s.trim()) : []),
+              email: row.email || '',
+              phone: row.phone || '',
+              bio: row.bio || '',
+              status: row.status || 'applied',
+              appliedJobTitle: row.applied_job_title || row.job_title || '',
+              appliedJobId: row.applied_job_id || row.job_id || '',
+              appliedDate: row.applied_date || (row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Just now'),
+              notes: row.notes || '',
+              rating: row.rating ? Number(row.rating) : undefined,
+              source: 'WorkNext Recruiter',
+              recruiterId: row.recruiter_id || '',
+              recruiterEmail: row.recruiter_email || '',
+            }));
         }
       } catch (err: any) {
         console.warn('Supabase candidates query note:', err.message);
       }
     }
 
-    if (candidates.length === 0) {
-      candidates = [...backendCandidatesStore];
+    // Merge from memory store with strict isolation
+    for (const memCandidate of backendCandidatesStore) {
+      if (memCandidate.source === 'Adzuna') continue; // Never include Adzuna!
+      const isOwned = (recruiterId && memCandidate.recruiterId === recruiterId) ||
+        (recruiterEmail && memCandidate.recruiterEmail === recruiterEmail) ||
+        (memCandidate.appliedJobId && ownJobIds.has(memCandidate.appliedJobId));
+
+      if (isOwned && !candidates.some(c => c.id === memCandidate.id)) {
+        candidates.push(memCandidate);
+      }
     }
+
+    // Strict filter to guarantee no other recruiter or Adzuna applications leak through
+    candidates = candidates.filter(c => {
+      if (c.source === 'Adzuna') return false;
+      if (recruiterId && c.recruiterId === recruiterId) return true;
+      if (recruiterEmail && c.recruiterEmail === recruiterEmail) return true;
+      if (c.appliedJobId && ownJobIds.has(c.appliedJobId)) return true;
+      return false;
+    });
 
     return res.json({
       success: true,
@@ -1233,13 +1336,48 @@ app.get('/api/recruiter/candidates', async (req, res) => {
   }
 });
 
-// POST /api/recruiter/candidates - submit a genuine applicant submission to the backend
+// POST /api/recruiter/candidates - submit an applicant submission to the backend
+// Handles Adzuna applications separately from WorkNext Recruiter applications
 app.post('/api/recruiter/candidates', async (req, res) => {
   try {
     const candidateData = req.body;
     if (!candidateData.name && !candidateData.email) {
       return res.status(400).json({ success: false, error: 'Candidate name or email is required' });
     }
+
+    // Separate Adzuna job applications: store separately and NEVER send to Recruiter dashboard
+    if (candidateData.source === 'Adzuna' || candidateData.source === 'adzuna') {
+      const adzunaApp = {
+        id: candidateData.id || `adzuna_app_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        name: String(candidateData.name || '').trim(),
+        email: String(candidateData.email || '').trim(),
+        appliedJobId: candidateData.appliedJobId || '',
+        appliedJobTitle: String(candidateData.appliedJobTitle || '').trim(),
+        appliedDate: candidateData.appliedDate || new Date().toLocaleDateString(),
+        source: 'Adzuna',
+      };
+      backendAdzunaApplicationsStore.unshift(adzunaApp);
+      return res.json({ success: true, application: adzunaApp, message: 'Adzuna application recorded separately' });
+    }
+
+    // For WorkNext Recruiter jobs: verify job exists and is active/open
+    const targetJobId = candidateData.appliedJobId;
+    const appliedJob = targetJobId ? backendJobsStore.find(j => j.id === targetJobId) : undefined;
+
+    if (appliedJob && appliedJob.status === 'closed') {
+      return res.status(400).json({
+        success: false,
+        error: 'This job opening has been closed by the recruiter and is no longer accepting applications.'
+      });
+    }
+
+    // Increment job applicants count if job is found
+    if (appliedJob) {
+      appliedJob.applicantsCount = (appliedJob.applicantsCount || 0) + 1;
+    }
+
+    const recruiterId = candidateData.recruiterId || appliedJob?.recruiterId || '';
+    const recruiterEmail = candidateData.recruiterEmail || appliedJob?.recruiterEmail || '';
 
     const newCandidate: ServerCandidate = {
       id: candidateData.id || `cand_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1253,11 +1391,14 @@ app.post('/api/recruiter/candidates', async (req, res) => {
       phone: String(candidateData.phone || '').trim(),
       bio: String(candidateData.bio || '').trim(),
       status: candidateData.status || 'applied',
-      appliedJobTitle: String(candidateData.appliedJobTitle || '').trim(),
-      appliedJobId: candidateData.appliedJobId || '',
+      appliedJobTitle: String(candidateData.appliedJobTitle || appliedJob?.title || '').trim(),
+      appliedJobId: targetJobId || '',
       appliedDate: candidateData.appliedDate || 'Just now',
       notes: candidateData.notes || '',
-      rating: candidateData.rating ? Number(candidateData.rating) : undefined
+      rating: candidateData.rating ? Number(candidateData.rating) : undefined,
+      source: 'WorkNext Recruiter',
+      recruiterId,
+      recruiterEmail,
     };
 
     backendCandidatesStore.unshift(newCandidate);
@@ -1280,7 +1421,17 @@ app.post('/api/recruiter/candidates', async (req, res) => {
           applied_job_title: newCandidate.appliedJobTitle,
           applied_job_id: newCandidate.appliedJobId,
           notes: newCandidate.notes,
+          source: 'WorkNext Recruiter',
+          recruiter_id: recruiterId,
+          recruiter_email: recruiterEmail,
         }]);
+
+        if (targetJobId) {
+          // Increment applicants count in supabase
+          try {
+            await supabase.rpc('increment_job_applicants', { job_id: targetJobId });
+          } catch (_) {}
+        }
       } catch (err: any) {
         console.warn('Supabase candidate insert note:', err.message);
       }

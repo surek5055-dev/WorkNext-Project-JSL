@@ -130,6 +130,9 @@ export interface Job {
   source?: 'worknext' | 'adzuna' | string;
   recruiterId?: string;
   recruiterEmail?: string;
+  status?: 'active' | 'closed';
+  isOpen?: boolean;
+  externalConfirmedSubmission?: boolean;
 }
 
 export interface ResumeSectionExperience {

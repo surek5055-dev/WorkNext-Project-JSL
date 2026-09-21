@@ -41,7 +41,7 @@ interface AppContextType {
   savedJobIds: string[];
   appliedJobIds: string[];
   toggleSaveJob: (jobId: string) => void;
-  applyForJob: (jobId: string, jobData?: Job) => void;
+  applyForJob: (jobId: string, jobData?: Job) => Promise<{ success: boolean; error?: string }> | void;
   
   notifications: NotificationItem[];
   markNotificationRead: (id: string) => void;
@@ -488,7 +488,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
   const [savedJobIds, setSavedJobIds] = useState<string[]>(() => user.savedJobIds || []);
-  const [appliedJobIds, setAppliedJobIds] = useState<string[]>(() => user.appliedJobIds || []);
+  const [appliedJobIds, setAppliedJobIds] = useState<string[]>(() => {
+    const initial = user.appliedJobIds || [];
+    // Only WorkNext recruiter applications are tracked here; external jobs without API confirmation are never assumed applied
+    return initial.filter(id => !id.startsWith('adzuna_') && !id.startsWith('linkedin_'));
+  });
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -547,50 +551,84 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const applyForJob = (jobId: string, jobData?: Job) => {
-    if (!appliedJobIds.includes(jobId)) {
-      const next = [...appliedJobIds, jobId];
-      setAppliedJobIds(next);
-      setUser(u => ({ ...u, appliedJobIds: next }));
+  const applyForJob = async (jobId: string, jobData?: Job): Promise<{ success: boolean; error?: string }> => {
+    const job = jobData || jobs.find(j => j.id === jobId);
+    const isExternal =
+      job?.source === 'adzuna' ||
+      job?.source === 'Adzuna' ||
+      job?.source === 'linkedin' ||
+      job?.source === 'LinkedIn' ||
+      (typeof jobId === 'string' && (jobId.startsWith('adzuna_') || jobId.startsWith('linkedin_'))) ||
+      (Boolean(job?.applyUrl) && job?.source !== 'worknext');
 
-      // Add notification for applying
-      const job = jobData || jobs.find(j => j.id === jobId);
-      if (job) {
-        const newNotif: NotificationItem = {
-          id: 'not_' + Date.now(),
-          title: 'Application Submitted!',
-          message: `Your application for ${job.title} at ${job.company} was submitted.`,
-          timestamp: 'Just now',
-          type: 'application',
-          read: false,
-          link: '/dashboard'
-        };
-        setNotifications(prev => [newNotif, ...prev]);
-
-        // Sync real candidate application to backend
-        fetch('/api/recruiter/candidates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: user.name || 'Job Applicant',
-            email: user.email || '',
-            phone: user.phone || '',
-            location: user.location || '',
-            role: user.title || 'Applicant',
-            experienceYears: user.experienceYears || 0,
-            matchScore: job.matchScore || 0,
-            skills: user.skills || [],
-            bio: user.bio || '',
-            status: 'applied',
-            appliedJobTitle: job.title,
-            appliedJobId: job.id,
-            recruiterId: job.recruiterId || '',
-            recruiterEmail: job.recruiterEmail || '',
-          }),
-        }).catch(err => {
-          console.warn('Could not sync application to backend:', err);
-        });
+    // For LinkedIn/Adzuna external jobs:
+    // Before application: show Apply Now.
+    // Clicking Apply Now must only open the external application URL.
+    // Do NOT mark the job as Applied when the link opens.
+    // Do NOT mark it Applied merely because the user returns to WorkNext.
+    // Mark Applied only when there is a real confirmation that the external application
+    // was successfully submitted through a supported API/integration.
+    // If no external submission confirmation is available, keep the status as Apply Now.
+    // Never fake or assume an application was submitted.
+    if (isExternal && !job?.externalConfirmedSubmission) {
+      if (job?.applyUrl) {
+        window.open(job.applyUrl, '_blank', 'noopener,noreferrer');
       }
+      return { success: true };
+    }
+
+    // Keep WorkNext Recruiter applications separate; those can use WorkNext's own application status
+    try {
+      const res = await fetch('/api/recruiter/candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: user.name || user.email || 'Job Applicant',
+          email: user.email || '',
+          phone: user.phone || '',
+          location: user.location || '',
+          role: user.title || user.extractedProfile?.targetRole || 'Applicant',
+          experienceYears: user.experienceYears || 0,
+          matchScore: job?.matchScore || 0,
+          skills: user.extractedProfile?.skills || user.skills || [],
+          bio: user.bio || '',
+          status: 'applied',
+          appliedJobTitle: job?.title || 'Open Position',
+          appliedJobId: jobId,
+          source: 'WorkNext Recruiter',
+          recruiterId: job?.recruiterId || '',
+          recruiterEmail: job?.recruiterEmail || '',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        return { success: false, error: data.error || 'Failed to submit application.' };
+      }
+
+      if (!appliedJobIds.includes(jobId)) {
+        const next = [...appliedJobIds, jobId];
+        setAppliedJobIds(next);
+        setUser(u => ({ ...u, appliedJobIds: next }));
+
+        if (job) {
+          const newNotif: NotificationItem = {
+            id: 'not_' + Date.now(),
+            title: 'WorkNext Application Submitted!',
+            message: `Your application for ${job.title} at ${job.company} was submitted directly to the recruiter.`,
+            timestamp: 'Just now',
+            type: 'application',
+            read: false,
+            link: '/dashboard'
+          };
+          setNotifications(prev => [newNotif, ...prev]);
+        }
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Could not sync application to backend:', err);
+      return { success: false, error: 'Could not connect to recruiter application service.' };
     }
   };
 

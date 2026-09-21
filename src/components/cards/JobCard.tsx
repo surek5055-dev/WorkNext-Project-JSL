@@ -15,7 +15,27 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
   const { savedJobIds, appliedJobIds, toggleSaveJob, applyForJob } = useApp();
 
   const isSaved = savedJobIds.includes(job.id);
-  const isApplied = appliedJobIds.includes(job.id);
+
+  // Check whether this is an external job (LinkedIn, Adzuna, or external apply URL)
+  const isExternal =
+    job.source === 'adzuna' ||
+    job.source === 'Adzuna' ||
+    job.source === 'linkedin' ||
+    job.source === 'LinkedIn' ||
+    (typeof job.id === 'string' && (job.id.startsWith('adzuna_') || job.id.startsWith('linkedin_'))) ||
+    (Boolean(job.applyUrl) && job.source !== 'worknext');
+
+  // For external jobs:
+  // Show Apply Now before application.
+  // Clicking Apply Now only opens the external application URL.
+  // Do NOT mark as Applied when the link opens or when returning to WorkNext.
+  // Mark Applied ONLY when there is a real confirmation that external application was successfully submitted via supported API.
+  // If no external submission confirmation is available, keep status as Apply Now.
+  // Never fake or assume an application was submitted.
+  // WorkNext Recruiter applications remain separate and use WorkNext's own application status.
+  const isConfirmedApplied = isExternal
+    ? Boolean(job.externalConfirmedSubmission)
+    : appliedJobIds.includes(job.id);
 
   const formatSalary = (min: number, max: number, period: string) => {
     if (!min && !max) {
@@ -161,7 +181,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
             </Button>
           )}
 
-          {isApplied ? (
+          {isConfirmedApplied ? (
             <Button
               variant="outline"
               size="sm"
@@ -170,14 +190,15 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
             >
               <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" /> Applied
             </Button>
-          ) : job.applyUrl ? (
+          ) : isExternal && job.applyUrl ? (
             <a
               href={job.applyUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => {
                 e.stopPropagation();
-                applyForJob(job.id, job);
+                // Strictly opens external application URL only.
+                // Do NOT mark as Applied; do NOT fake or assume submission.
               }}
               className="inline-flex shrink-0"
             >

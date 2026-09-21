@@ -124,7 +124,16 @@ export const RecruiterDashboardPage: React.FC = () => {
     const fetchRealCandidates = async () => {
       setLoadingCandidates(true);
       try {
-        const res = await fetch('/api/recruiter/candidates');
+        const q = new URLSearchParams();
+        if (user?.id) q.set('recruiterId', user.id);
+        if (user?.email) q.set('recruiterEmail', user.email);
+
+        const res = await fetch(`/api/recruiter/candidates?${q.toString()}`, {
+          headers: {
+            'x-recruiter-id': user?.id || '',
+            'x-recruiter-email': user?.email || '',
+          },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.candidates)) {
@@ -250,6 +259,24 @@ export const RecruiterDashboardPage: React.FC = () => {
       await fetch(`/api/recruiter/jobs/${jobId}?${q.toString()}`, { method: 'DELETE' });
     } catch (err) {
       console.warn('Error deleting recruiter job:', err);
+    }
+  };
+
+  // Toggle opening status between active and closed
+  const handleToggleJobStatus = async (jobId: string, currentStatus?: string) => {
+    const nextStatus = currentStatus === 'closed' ? 'active' : 'closed';
+    setRecruiterJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: nextStatus } : j));
+    try {
+      const q = new URLSearchParams();
+      if (user?.id) q.set('recruiterId', user.id);
+      if (user?.email) q.set('recruiterEmail', user.email);
+      await fetch(`/api/recruiter/jobs/${jobId}/status?${q.toString()}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+    } catch (err) {
+      console.warn('Error updating recruiter job status:', err);
     }
   };
 
@@ -835,6 +862,15 @@ export const RecruiterDashboardPage: React.FC = () => {
                   >
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
+                        {job.status === 'closed' ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-mono">
+                            Closed / Inactive
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-mono">
+                            Active / Open
+                          </span>
+                        )}
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-500/10 text-teal-700 dark:text-teal-300 font-mono">
                           {job.type}
                         </span>
@@ -869,7 +905,15 @@ export const RecruiterDashboardPage: React.FC = () => {
                         ₹{job.salaryMin.toLocaleString()} - ₹{job.salaryMax.toLocaleString()}/yr
                       </span>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleJobStatus(job.id, job.status)}
+                          className={`text-xs ${job.status === 'closed' ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400' : 'border-amber-500/40 text-amber-600 dark:text-amber-400'}`}
+                        >
+                          {job.status === 'closed' ? 'Reopen Job' : 'Close Job'}
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -891,7 +935,7 @@ export const RecruiterDashboardPage: React.FC = () => {
                         <button
                           onClick={() => handleDeleteJob(job.id)}
                           className="p-2 rounded-xl text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 border border-stone-200 dark:border-stone-800 transition-colors cursor-pointer"
-                          title="Remove Opening"
+                          title="Delete Opening"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
