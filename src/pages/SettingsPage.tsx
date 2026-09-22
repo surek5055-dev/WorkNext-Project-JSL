@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useApp } from '../context/AppContext';
-import { Eye, Globe, Bell, Moon, Sun, Save, CheckCircle2 } from 'lucide-react';
+import { Eye, Globe, Bell, Moon, Sun, Save, CheckCircle2, LogOut, Shield } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
 export const SettingsPage: React.FC = () => {
@@ -14,7 +15,10 @@ export const SettingsPage: React.FC = () => {
     fontSize,
     setFontSize,
     highContrast,
-    toggleHighContrast
+    toggleHighContrast,
+    user,
+    isLoggedIn,
+    logout
   } = useApp();
 
   const [emailAlerts, setEmailAlerts] = useState(true);
@@ -201,6 +205,46 @@ export const SettingsPage: React.FC = () => {
                   className="w-4 h-4 text-[#0F766E] focus:ring-[#0F766E] rounded border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800"
                 />
               </label>
+            </div>
+          </div>
+
+          {/* Account & Session Management */}
+          <div className="p-8 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-5">
+            <h2 className="text-base font-bold text-stone-900 dark:text-white flex items-center gap-2.5 font-display">
+              <Shield className="w-5 h-5 text-[#0F766E] dark:text-teal-400" /> Account & Session Security
+            </h2>
+
+            <div className="p-4 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold text-stone-900 dark:text-white font-display">Active Session</p>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-sans mt-0.5">
+                  {isLoggedIn && user.email ? (
+                    <>Signed in as <span className="font-semibold text-stone-700 dark:text-stone-300">{user.email}</span> (Session Storage protected)</>
+                  ) : (
+                    <>Not signed in to any active user account.</>
+                  )}
+                </p>
+              </div>
+
+              {isLoggedIn ? (
+                <Button
+                  id="settings-logout-btn"
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => logout()}
+                  className="border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-1.5"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log Out</span>
+                </Button>
+              ) : (
+                <Link to="/login">
+                  <Button variant="outline" size="sm" type="button">
+                    Sign In
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
 

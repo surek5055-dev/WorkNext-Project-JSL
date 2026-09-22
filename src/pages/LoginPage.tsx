@@ -39,7 +39,11 @@ export const LoginPage: React.FC = () => {
         data.user.role,
         data.session?.access_token
       );
-      navigate('/dashboard');
+      if (data.user.role === 'recruiter') {
+        navigate('/recruiter');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed. Please check credentials.');
     } finally {

@@ -216,11 +216,13 @@ export const ProfileDropdown: React.FC = () => {
 
           <div className="p-2 border-t border-slate-100 dark:border-slate-800">
             <button
+              id="profile-dropdown-logout-btn"
+              type="button"
               onClick={() => {
-                logout();
                 setOpen(false);
+                logout();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer text-left font-medium text-xs"
             >
               <LogOut className="w-4 h-4" />
               <span>Log Out</span>

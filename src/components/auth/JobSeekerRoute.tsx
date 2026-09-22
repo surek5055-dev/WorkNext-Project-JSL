@@ -17,6 +17,12 @@ export const JobSeekerRoute: React.FC<JobSeekerRouteProps> = ({ children }) => {
 
   const isRecruiter = isLoggedIn && (user?.role === 'recruiter' || (user?.role as string) === 'employer');
 
+  if (!isLoggedIn) {
+    if (location.pathname === '/dashboard' || location.pathname === '/profile' || location.pathname === '/settings') {
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+  }
+
   if (isRecruiter) {
     if (location.pathname === '/profile' || location.pathname === '/settings') {
       return <Navigate to="/recruiter?tab=profile" replace />;

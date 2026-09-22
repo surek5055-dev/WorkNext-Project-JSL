@@ -3,10 +3,46 @@ import { motion, AnimatePresence } from 'motion/react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useApp } from '../context/AppContext';
 import { createEmptyResume } from '../data/mockData';
-import { Resume } from '../types';
+import { Resume, ResumeSectionEducation } from '../types';
 import { Button } from '../components/ui/Button';
 import { PlaceholderCard } from '../components/ui/EmptyState';
-import { Sparkles, Download, CheckCircle, FileText, Layout, Upload, Target, Video, BarChart2, AlertCircle, Trash2, Plus, X } from 'lucide-react';
+import {
+  Sparkles,
+  Download,
+  CheckCircle,
+  FileText,
+  Layout,
+  Upload,
+  Target,
+  Video,
+  BarChart2,
+  AlertCircle,
+  Trash2,
+  Plus,
+  X,
+  Palette,
+  Printer,
+  FileDown,
+  Eye,
+  SlidersHorizontal,
+  BookOpen,
+  GraduationCap,
+  Check,
+  Columns,
+  Layers,
+  Type
+} from 'lucide-react';
+
+export type ResumeTemplateId = 'ats_classic' | 'modern_executive' | 'tech_minimalist' | 'creative_compact';
+export type ResumeFontPairing = 'sans' | 'serif' | 'mono';
+export type ResumeDensity = 'compact' | 'balanced' | 'spacious';
+
+export interface ResumeDesignConfig {
+  template: ResumeTemplateId;
+  accentColor: string;
+  fontPairing: ResumeFontPairing;
+  density: ResumeDensity;
+}
 
 export interface ResumeBuilderPageProps {
   resume?: Resume;
@@ -41,11 +77,31 @@ export const ResumeBuilderPage: React.FC<ResumeBuilderPageProps> = ({
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Redesign Configuration State
+  const [designConfig, setDesignConfig] = useState<ResumeDesignConfig>({
+    template: 'ats_classic',
+    accentColor: '#0F766E',
+    fontPairing: 'sans',
+    density: 'balanced'
+  });
+  const [showRedesignStudio, setShowRedesignStudio] = useState(false);
+
+  // Experience Form State
   const [newExpRole, setNewExpRole] = useState('');
   const [newExpCompany, setNewExpCompany] = useState('');
   const [newExpYears, setNewExpYears] = useState('');
   const [newExpHighlight, setNewExpHighlight] = useState('');
   const [showAddExp, setShowAddExp] = useState(false);
+
+  // Education Form State
+  const [newEduInstitution, setNewEduInstitution] = useState('');
+  const [newEduDegree, setNewEduDegree] = useState('');
+  const [newEduField, setNewEduField] = useState('');
+  const [newEduYear, setNewEduYear] = useState('');
+  const [showAddEdu, setShowAddEdu] = useState(false);
+
+  // Quick Skill Form State
+  const [newSkillInput, setNewSkillInput] = useState('');
 
   const handleFileUpload = (file: File) => {
     // Validate file extension
@@ -169,6 +225,106 @@ export const ResumeBuilderPage: React.FC<ResumeBuilderPageProps> = ({
     }));
   };
 
+  const handleAddEducation = () => {
+    if (!newEduInstitution.trim() || !newEduDegree.trim()) return;
+    const newEdu: ResumeSectionEducation = {
+      id: 'edu_' + Date.now(),
+      institution: newEduInstitution.trim(),
+      degree: newEduDegree.trim(),
+      field: newEduField.trim() || 'General Studies',
+      year: newEduYear.trim() || '2024'
+    };
+    setActiveResume(prev => ({
+      ...prev,
+      education: [...(prev.education || []), newEdu]
+    }));
+    setNewEduInstitution('');
+    setNewEduDegree('');
+    setNewEduField('');
+    setNewEduYear('');
+    setShowAddEdu(false);
+  };
+
+  const handleRemoveEducation = (id: string) => {
+    setActiveResume(prev => ({
+      ...prev,
+      education: (prev.education || []).filter(e => e.id !== id)
+    }));
+  };
+
+  const handleAddSkill = () => {
+    if (!newSkillInput.trim()) return;
+    const skillName = newSkillInput.trim();
+    if (!activeResume.skills.includes(skillName)) {
+      setActiveResume(prev => ({
+        ...prev,
+        skills: [...prev.skills, skillName]
+      }));
+    }
+    setNewSkillInput('');
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setActiveResume(prev => ({
+      ...prev,
+      skills: prev.skills.filter(s => s !== skillToRemove)
+    }));
+  };
+
+  // PDF Export Trigger
+  const handleExportPDF = () => {
+    window.print();
+  };
+
+  // ATS Plain Text File Download
+  const handleDownloadText = () => {
+    const skillsList = ((user.skills && user.skills.length > 0) ? user.skills : activeResume.skills).join(', ');
+    const content = [
+      (user?.name || 'Your Name').toUpperCase(),
+      activeResume.targetRole || '',
+      `${user?.location || ''} | ${user?.email || ''} | ${user?.phone || ''}`,
+      '',
+      '========================================',
+      'PROFESSIONAL SUMMARY',
+      '========================================',
+      activeResume.summary || 'Summary not provided.',
+      '',
+      '========================================',
+      'WORK EXPERIENCE',
+      '========================================',
+      ...(activeResume.experiences.length > 0
+        ? activeResume.experiences.map(exp => [
+            `${exp.role} - ${exp.company} (${exp.startDate} - ${exp.endDate})`,
+            ...exp.highlights.map(h => `  • ${h}`),
+            ''
+          ].join('\n'))
+        : ['No experience listed.']),
+      '========================================',
+      'EDUCATION',
+      '========================================',
+      ...((activeResume.education && activeResume.education.length > 0)
+        ? activeResume.education.map(edu => 
+            `${edu.degree} in ${edu.field} | ${edu.institution} (${edu.year})`
+          )
+        : ['No education listed.']),
+      '',
+      '========================================',
+      'CORE TECHNICAL COMPETENCIES',
+      '========================================',
+      skillsList || 'No skills listed.'
+    ].join('\n');
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(user?.name || 'Candidate').replace(/\s+/g, '_')}_ATS_Resume.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const isAnalysisRequested = Boolean(user.analysisRequested);
 
   return (
@@ -198,7 +354,28 @@ export const ResumeBuilderPage: React.FC<ResumeBuilderPageProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 no-print">
+            <Button
+              variant="outline"
+              size="md"
+              icon={<Palette className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />}
+              onClick={() => setShowRedesignStudio(prev => !prev)}
+              className={showRedesignStudio ? 'border-[#0F766E] text-[#0F766E] bg-teal-50/50 dark:bg-teal-950/40' : ''}
+              id="btn-redesign-resume"
+            >
+              {showRedesignStudio ? 'Hide Design Studio' : 'Redesign Resume'}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="md"
+              icon={<Printer className="w-4 h-4" />}
+              onClick={handleExportPDF}
+              id="btn-export-pdf"
+            >
+              Export PDF
+            </Button>
+
             <Button
               variant="outline"
               size="md"
@@ -809,113 +986,754 @@ export const ResumeBuilderPage: React.FC<ResumeBuilderPageProps> = ({
                 </div>
               )}
 
-              {activeResume.experiences.length === 0 ? (
-                <div className="p-6 rounded-xl border border-dashed border-stone-200 dark:border-stone-800 text-center text-xs text-stone-500">
-                  <p>No work experience added yet.</p>
-                  <p className="text-[11px] text-stone-400 mt-1">Add your previous roles or upload your resume above.</p>
+              {/* Education Section */}
+              <div className="pt-6 border-t border-stone-200/80 dark:border-stone-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-white flex items-center gap-2 font-display">
+                      <GraduationCap className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />
+                      Education & Credentials
+                    </h3>
+                    <p className="text-xs text-stone-500">Degree, institutions, and graduation timelines.</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={showAddEdu ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    onClick={() => setShowAddEdu(!showAddEdu)}
+                  >
+                    {showAddEdu ? 'Cancel' : 'Add Education'}
+                  </Button>
                 </div>
-              ) : (
-                activeResume.experiences.map((exp) => (
-                  <div key={exp.id} className="p-5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 space-y-2.5 font-sans relative">
-                    <div className="flex justify-between items-center text-xs font-bold text-stone-900 dark:text-white">
-                      <span>{exp.role} @ {exp.company}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-stone-500 font-normal text-[11px]">{exp.startDate} - {exp.endDate}</span>
+
+                {showAddEdu && (
+                  <div className="p-4 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 space-y-3 font-sans">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">Degree *</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. B.Tech / B.S."
+                          value={newEduDegree}
+                          onChange={e => setNewEduDegree(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#1A1A1A] text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#0F766E]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">Field of Study</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Computer Science & Engineering"
+                          value={newEduField}
+                          onChange={e => setNewEduField(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#1A1A1A] text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#0F766E]"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">Institution / University *</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. National Institute of Technology"
+                          value={newEduInstitution}
+                          onChange={e => setNewEduInstitution(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#1A1A1A] text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#0F766E]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-stone-600 dark:text-stone-300">Graduation Year</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 2024"
+                          value={newEduYear}
+                          onChange={e => setNewEduYear(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#1A1A1A] text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#0F766E]"
+                        />
+                      </div>
+                    </div>
+                    <Button variant="primary" size="sm" onClick={handleAddEducation} className="bg-[#0F766E] hover:bg-[#0D655E]">
+                      Save Education
+                    </Button>
+                  </div>
+                )}
+
+                {(!activeResume.education || activeResume.education.length === 0) ? (
+                  <div className="p-5 rounded-xl border border-dashed border-stone-200 dark:border-stone-800 text-center text-xs text-stone-500">
+                    <p>No education history added yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {activeResume.education.map(edu => (
+                      <div key={edu.id} className="p-3.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-bold text-stone-900 dark:text-white">{edu.degree} in {edu.field}</p>
+                          <p className="text-[11px] text-stone-500">{edu.institution} • {edu.year}</p>
+                        </div>
                         <button
-                          onClick={() => handleRemoveExperience(exp.id)}
+                          onClick={() => handleRemoveEducation(edu.id)}
                           className="text-stone-400 hover:text-rose-500 p-1"
-                          aria-label="Remove role"
+                          aria-label="Remove education"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1.5 text-xs text-stone-600 dark:text-stone-300">
-                      {exp.highlights.map((h, i) => (
-                        <li key={i}>{h}</li>
-                      ))}
-                    </ul>
+                    ))}
                   </div>
-                ))
-              )}
+                )}
+              </div>
+
+              {/* Skills Editor */}
+              <div className="pt-6 border-t border-stone-200/80 dark:border-stone-800 space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900 dark:text-white flex items-center gap-2 font-display">
+                    <Layers className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />
+                    Core Skills & ATS Keywords
+                  </h3>
+                  <p className="text-xs text-stone-500">Skills matched by recruiters and ATS search parsers.</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add technical or domain skill..."
+                    value={newSkillInput}
+                    onChange={e => setNewSkillInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900 text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#0F766E]"
+                  />
+                  <Button variant="outline" size="sm" onClick={handleAddSkill}>
+                    Add
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {((user.skills && user.skills.length > 0) ? user.skills : activeResume.skills).map((skill, sIdx) => (
+                    <span
+                      key={sIdx}
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700"
+                    >
+                      {skill}
+                      <button
+                        onClick={() => handleRemoveSkill(skill)}
+                        className="hover:text-rose-500 text-stone-400"
+                        title="Remove skill"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Right Live Resume Document Preview */}
-          <div className="lg:col-span-6">
-            <div className="sticky top-24 p-8 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-6 min-h-[550px] text-stone-900 dark:text-white font-sans">
-              <div className="border-b border-stone-200 dark:border-stone-800 pb-4 text-center space-y-1">
-                <h2 className="text-2xl font-extrabold tracking-tight text-stone-900 dark:text-white font-display uppercase">
-                  {user?.name || 'Your Name'}
-                </h2>
-                <p className={`text-xs font-semibold tracking-wider uppercase font-sans ${
-                  activeResume.targetRole ? 'text-[#0F766E] dark:text-teal-400' : 'text-stone-400 italic'
-                }`}>
-                  {activeResume.targetRole || 'Target Role Title'}
-                </p>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-sans">
-                  {user?.location || 'Your Location'} • {user?.email || 'email@example.com'}
-                </p>
+          {/* Right Live Resume Document Preview & Redesign Studio */}
+          <div className="lg:col-span-6 space-y-4">
+            {/* Top Toolbar */}
+            <div className="no-print p-4 rounded-2xl bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: designConfig.accentColor }} />
+                <span className="text-xs font-bold text-stone-900 dark:text-white capitalize">
+                  {designConfig.template.replace('_', ' ')}
+                </span>
+                <span className="text-stone-300 dark:text-stone-700">•</span>
+                <span className="text-xs text-stone-500 dark:text-stone-400 capitalize">
+                  {designConfig.fontPairing} Font
+                </span>
               </div>
 
-              {/* Summary */}
-              <div>
-                <h3 className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 border-b border-stone-100 dark:border-stone-800 pb-1 font-sans">
-                  Professional Summary
-                </h3>
-                <p className={`text-xs leading-relaxed font-sans ${
-                  activeResume.summary ? 'text-stone-700 dark:text-stone-300' : 'text-stone-400 italic'
-                }`}>
-                  {activeResume.summary || 'Summary will appear here as you type in the editor.'}
-                </p>
-              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<Palette className="w-3.5 h-3.5 text-[#0F766E] dark:text-teal-400" />}
+                  onClick={() => setShowRedesignStudio(!showRedesignStudio)}
+                  className={showRedesignStudio ? 'border-[#0F766E] text-[#0F766E] bg-teal-50/50 dark:bg-teal-950/40' : ''}
+                >
+                  {showRedesignStudio ? 'Close Studio' : 'Redesign Resume'}
+                </Button>
 
-              {/* Experience */}
-              <div>
-                <h3 className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-3 border-b border-stone-100 dark:border-stone-800 pb-1 font-sans">
-                  Work Experience
-                </h3>
-                {activeResume.experiences.length === 0 ? (
-                  <p className="text-xs text-stone-400 italic">Work experience entries will appear here.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {activeResume.experiences.map(exp => (
-                      <div key={exp.id}>
-                        <div className="flex justify-between items-baseline text-xs font-bold text-stone-900 dark:text-white font-display">
-                          <span>{exp.role} — <span className="font-normal text-stone-500 font-sans">{exp.company}</span></span>
-                          <span className="text-[11px] text-stone-400 font-sans">{exp.startDate} - {exp.endDate}</span>
-                        </div>
-                        <ul className="mt-2 space-y-1.5 font-sans">
-                          {exp.highlights.map((hl, i) => (
-                            <li key={i} className="text-xs text-stone-600 dark:text-stone-300 flex items-start gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#0F766E] dark:bg-teal-400 mt-1.5 shrink-0" />
-                              <span>{hl}</span>
-                            </li>
-                          ))}
-                        </ul>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<FileDown className="w-3.5 h-3.5" />}
+                  onClick={handleDownloadText}
+                  title="Download plain text for ATS paste"
+                >
+                  Plain Text
+                </Button>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<Printer className="w-3.5 h-3.5" />}
+                  onClick={handleExportPDF}
+                  className="bg-[#0F766E] hover:bg-[#0D655E]"
+                  id="btn-export-pdf-preview"
+                >
+                  Export PDF
+                </Button>
+              </div>
+            </div>
+
+            {/* Redesign Studio Panel */}
+            <AnimatePresence>
+              {showRedesignStudio && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="no-print p-6 rounded-2xl bg-white dark:bg-[#1A1A1A] border border-teal-200 dark:border-teal-900 shadow-sm space-y-6 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="w-4 h-4 text-[#0F766E] dark:text-teal-400" />
+                      <h3 className="text-sm font-bold text-stone-900 dark:text-white font-display">
+                        Resume Redesign Studio
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setShowRedesignStudio(false)}
+                      className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 text-sm font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* 1. Template Chooser */}
+                  <div className="space-y-2.5">
+                    <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block">
+                      1. Select Layout & ATS Template
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {[
+                        { id: 'ats_classic', label: 'ATS Classic', desc: '100% ATS score, single-column standard', badge: 'Best ATS' },
+                        { id: 'modern_executive', label: 'Modern Executive', desc: 'Accent borders & leadership header', badge: 'Executive' },
+                        { id: 'tech_minimalist', label: 'Tech Minimalist', desc: 'Monospace badges for developers', badge: 'Tech' },
+                        { id: 'creative_compact', label: 'Dual Column', desc: 'Sidebar skills + main role feed', badge: 'Modern' }
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => setDesignConfig(prev => ({ ...prev, template: t.id as ResumeTemplateId }))}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                            designConfig.template === t.id
+                              ? 'border-[#0F766E] bg-teal-50/50 dark:bg-teal-950/40 ring-1 ring-[#0F766E]'
+                              : 'border-stone-200 dark:border-stone-800 hover:border-stone-300 dark:hover:border-stone-700 bg-stone-50/60 dark:bg-stone-900/60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-mono">
+                              {t.badge}
+                            </span>
+                            {designConfig.template === t.id && (
+                              <Check className="w-3.5 h-3.5 text-[#0F766E] dark:text-teal-400" />
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-stone-900 dark:text-white">{t.label}</p>
+                          <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5 leading-tight">{t.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Accent Color Swatches */}
+                  <div className="space-y-2.5">
+                    <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block">
+                      2. Accent Theme Color
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {[
+                        { color: '#0F766E', name: 'WorkNext Teal' },
+                        { color: '#1E3A8A', name: 'Slate Navy' },
+                        { color: '#334155', name: 'Graphite Charcoal' },
+                        { color: '#059669', name: 'Emerald Green' },
+                        { color: '#4338CA', name: 'Royal Indigo' },
+                        { color: '#881337', name: 'Crimson Wine' }
+                      ].map(swatch => (
+                        <button
+                          key={swatch.color}
+                          onClick={() => setDesignConfig(prev => ({ ...prev, accentColor: swatch.color }))}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs cursor-pointer transition-all ${
+                            designConfig.accentColor === swatch.color
+                              ? 'border-stone-900 dark:border-white bg-stone-100 dark:bg-stone-800 font-bold'
+                              : 'border-stone-200 dark:border-stone-800 hover:border-stone-300'
+                          }`}
+                        >
+                          <span
+                            className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs"
+                            style={{ backgroundColor: swatch.color }}
+                          />
+                          <span className="text-stone-800 dark:text-stone-200">{swatch.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Font Pairing & Density Controls */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-stone-200 dark:border-stone-800">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block">
+                        3. Typography Pairing
+                      </label>
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'sans', label: 'Clean Sans' },
+                          { id: 'serif', label: 'Executive Serif' },
+                          { id: 'mono', label: 'Technical Mono' }
+                        ].map(f => (
+                          <button
+                            key={f.id}
+                            onClick={() => setDesignConfig(prev => ({ ...prev, fontPairing: f.id as ResumeFontPairing }))}
+                            className={`flex-1 py-1.5 px-2 rounded-lg border text-xs font-medium cursor-pointer ${
+                              designConfig.fontPairing === f.id
+                                ? 'border-[#0F766E] bg-teal-50/60 dark:bg-teal-950/40 text-[#0F766E] font-bold'
+                                : 'border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-400'
+                            }`}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    </div>
 
-              {/* Skills */}
-              <div>
-                <h3 className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 border-b border-stone-100 dark:border-stone-800 pb-1 font-sans">
-                  Technical Core Competencies
-                </h3>
-                {(user.skills && user.skills.length > 0) || activeResume.skills.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5 font-sans">
-                    {((user.skills && user.skills.length > 0) ? user.skills : activeResume.skills).map((s, idx) => (
-                      <span key={idx} className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
-                        {s}
-                      </span>
-                    ))}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block">
+                        4. Information Density
+                      </label>
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'compact', label: 'Compact (1 Page)' },
+                          { id: 'balanced', label: 'Balanced' },
+                          { id: 'spacious', label: 'Spacious' }
+                        ].map(d => (
+                          <button
+                            key={d.id}
+                            onClick={() => setDesignConfig(prev => ({ ...prev, density: d.id as ResumeDensity }))}
+                            className={`flex-1 py-1.5 px-2 rounded-lg border text-xs font-medium cursor-pointer ${
+                              designConfig.density === d.id
+                                ? 'border-[#0F766E] bg-teal-50/60 dark:bg-teal-950/40 text-[#0F766E] font-bold'
+                                : 'border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-400'
+                            }`}
+                          >
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-stone-400 italic">Add skills in your profile to display competencies here.</p>
-                )}
-              </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Document Preview Sheet */}
+            <div
+              id="resume-document-canvas"
+              className={`resume-print-sheet rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-sm text-stone-900 dark:text-white transition-all ${
+                designConfig.fontPairing === 'serif'
+                  ? 'font-serif'
+                  : designConfig.fontPairing === 'mono'
+                  ? 'font-mono'
+                  : 'font-sans'
+              } ${
+                designConfig.density === 'compact'
+                  ? 'p-6 space-y-4 text-xs'
+                  : designConfig.density === 'spacious'
+                  ? 'p-10 space-y-8 text-sm'
+                  : 'p-8 space-y-6 text-xs'
+              }`}
+            >
+              {/* =========================================================
+                  TEMPLATE 1: ATS CLASSIC (Single Column, Highest ATS Score)
+                  ========================================================= */}
+              {designConfig.template === 'ats_classic' && (
+                <div className="space-y-6">
+                  {/* Header */}
+                  <div className="border-b-2 pb-4 text-center space-y-1" style={{ borderColor: designConfig.accentColor }}>
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight uppercase text-stone-900 dark:text-white">
+                      {user?.name || 'Your Name'}
+                    </h2>
+                    <p className="text-xs font-semibold tracking-wider uppercase" style={{ color: designConfig.accentColor }}>
+                      {activeResume.targetRole || 'Target Role Title'}
+                    </p>
+                    <p className="text-[11px] text-stone-600 dark:text-stone-400">
+                      {user?.location || 'Location'} • {user?.email || 'email@example.com'} • {user?.phone || '+91 98765 43210'}
+                    </p>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider pb-1 border-b border-stone-300 dark:border-stone-700 text-stone-900 dark:text-white">
+                      Professional Summary
+                    </h3>
+                    <p className="leading-relaxed text-stone-700 dark:text-stone-300">
+                      {activeResume.summary || 'Summary will appear here as you type in the editor.'}
+                    </p>
+                  </div>
+
+                  {/* Experience */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider pb-1 border-b border-stone-300 dark:border-stone-700 text-stone-900 dark:text-white">
+                      Professional Experience
+                    </h3>
+                    {activeResume.experiences.length === 0 ? (
+                      <p className="text-stone-400 italic">Work experience entries will appear here.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {activeResume.experiences.map(exp => (
+                          <div key={exp.id} className="space-y-1.5">
+                            <div className="flex justify-between items-baseline font-bold text-stone-900 dark:text-white">
+                              <span>
+                                {exp.role} — <span className="font-semibold text-stone-600 dark:text-stone-400">{exp.company}</span>
+                              </span>
+                              <span className="text-[11px] text-stone-500 font-normal">{exp.startDate} - {exp.endDate}</span>
+                            </div>
+                            <ul className="list-disc list-outside pl-4 space-y-1 text-stone-700 dark:text-stone-300">
+                              {exp.highlights.map((hl, i) => (
+                                <li key={i}>{hl}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Education */}
+                  {activeResume.education && activeResume.education.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wider pb-1 border-b border-stone-300 dark:border-stone-700 text-stone-900 dark:text-white">
+                        Education & Academic Credentials
+                      </h3>
+                      <div className="space-y-2">
+                        {activeResume.education.map(edu => (
+                          <div key={edu.id} className="flex justify-between items-baseline text-stone-900 dark:text-white">
+                            <div>
+                              <span className="font-bold">{edu.degree} in {edu.field}</span>
+                              <span className="text-stone-600 dark:text-stone-400 font-normal"> — {edu.institution}</span>
+                            </div>
+                            <span className="text-[11px] text-stone-500">{edu.year}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Skills */}
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider pb-1 border-b border-stone-300 dark:border-stone-700 text-stone-900 dark:text-white">
+                      Technical Competencies & Skills
+                    </h3>
+                    <p className="leading-relaxed text-stone-700 dark:text-stone-300">
+                      {((user.skills && user.skills.length > 0) ? user.skills : activeResume.skills).join(' • ') || 'No competencies listed yet.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================
+                  TEMPLATE 2: MODERN EXECUTIVE (Accent Header & Badges)
+                  ========================================================= */}
+              {designConfig.template === 'modern_executive' && (
+                <div className="space-y-6">
+                  {/* Executive Header Banner */}
+                  <div
+                    className="p-6 rounded-xl border-l-4 space-y-1.5 bg-stone-50/70 dark:bg-stone-900/60"
+                    style={{ borderLeftColor: designConfig.accentColor }}
+                  >
+                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-white font-display">
+                      {user?.name || 'Your Name'}
+                    </h2>
+                    <p className="text-sm font-bold tracking-wide uppercase" style={{ color: designConfig.accentColor }}>
+                      {activeResume.targetRole || 'Target Role Title'}
+                    </p>
+                    <div className="flex flex-wrap gap-2 text-xs text-stone-500 dark:text-stone-400 pt-1">
+                      <span>{user?.location || 'Location'}</span>
+                      <span>•</span>
+                      <span>{user?.email || 'email@example.com'}</span>
+                      <span>•</span>
+                      <span>{user?.phone || '+91 98765 43210'}</span>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: designConfig.accentColor }} />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-stone-900 dark:text-white">
+                        Executive Summary
+                      </h3>
+                    </div>
+                    <p className="leading-relaxed text-stone-700 dark:text-stone-300 pl-4 border-l border-stone-200 dark:border-stone-800">
+                      {activeResume.summary || 'Summary will appear here as you type in the editor.'}
+                    </p>
+                  </div>
+
+                  {/* Experience */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: designConfig.accentColor }} />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-stone-900 dark:text-white">
+                        Leadership & Work History
+                      </h3>
+                    </div>
+                    <div className="space-y-4 pl-4 border-l border-stone-200 dark:border-stone-800">
+                      {activeResume.experiences.map(exp => (
+                        <div key={exp.id} className="space-y-1.5">
+                          <div className="flex justify-between items-baseline">
+                            <span className="font-bold text-stone-900 dark:text-white text-sm">
+                              {exp.role} <span style={{ color: designConfig.accentColor }}>@ {exp.company}</span>
+                            </span>
+                            <span className="text-[11px] text-stone-400 font-mono">{exp.startDate} - {exp.endDate}</span>
+                          </div>
+                          <ul className="space-y-1">
+                            {exp.highlights.map((hl, i) => (
+                              <li key={i} className="flex items-start gap-2 text-stone-700 dark:text-stone-300">
+                                <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: designConfig.accentColor }} />
+                                <span>{hl}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Education */}
+                  {activeResume.education && activeResume.education.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: designConfig.accentColor }} />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-stone-900 dark:text-white">
+                          Education & Credentials
+                        </h3>
+                      </div>
+                      <div className="space-y-2 pl-4 border-l border-stone-200 dark:border-stone-800">
+                        {activeResume.education.map(edu => (
+                          <div key={edu.id} className="flex justify-between items-baseline">
+                            <div>
+                              <p className="font-bold text-stone-900 dark:text-white">{edu.degree} in {edu.field}</p>
+                              <p className="text-[11px] text-stone-500">{edu.institution}</p>
+                            </div>
+                            <span className="text-xs font-mono text-stone-400">{edu.year}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Skills */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: designConfig.accentColor }} />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-stone-900 dark:text-white">
+                        Core Competencies
+                      </h3>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pl-4 border-l border-stone-200 dark:border-stone-800">
+                      {((user.skills && user.skills.length > 0) ? user.skills : activeResume.skills).map((skill, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-white shadow-2xs"
+                          style={{ backgroundColor: designConfig.accentColor }}
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================
+                  TEMPLATE 3: TECH MINIMALIST (Monospace & Developer Tags)
+                  ========================================================= */}
+              {designConfig.template === 'tech_minimalist' && (
+                <div className="space-y-6 font-mono text-xs">
+                  {/* Terminal Style Header */}
+                  <div className="border-b border-stone-200 dark:border-stone-800 pb-4 space-y-1">
+                    <div className="flex justify-between items-baseline">
+                      <h2 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white font-mono">
+                        &gt; {user?.name || 'Your Name'}
+                      </h2>
+                      <span className="text-[11px] text-stone-400 font-mono">ID: {user?.id?.slice(0, 8)}</span>
+                    </div>
+                    <p className="text-xs font-bold font-mono" style={{ color: designConfig.accentColor }}>
+                      // ROLE: {activeResume.targetRole || 'Software Engineer'}
+                    </p>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                      [loc: {user?.location || 'Bengaluru'}] [email: {user?.email || 'email@example.com'}]
+                    </p>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-bold uppercase text-stone-500 dark:text-stone-400 font-mono">
+                      // 01. SUMMARY
+                    </h3>
+                    <p className="leading-relaxed text-stone-700 dark:text-stone-300 font-sans">
+                      {activeResume.summary || 'Summary will appear here.'}
+                    </p>
+                  </div>
+
+                  {/* Experience */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase text-stone-500 dark:text-stone-400 font-mono">
+                      // 02. EXPERIENCE_HISTORY
+                    </h3>
+                    <div className="space-y-4">
+                      {activeResume.experiences.map(exp => (
+                        <div key={exp.id} className="space-y-1 font-mono">
+                          <div className="flex justify-between items-baseline font-bold text-stone-900 dark:text-white">
+                            <span>
+                              {exp.role} <span style={{ color: designConfig.accentColor }}>@{exp.company}</span>
+                            </span>
+                            <span className="text-[10px] text-stone-400">[{exp.startDate} -&gt; {exp.endDate}]</span>
+                          </div>
+                          <ul className="space-y-1 font-sans text-stone-700 dark:text-stone-300">
+                            {exp.highlights.map((hl, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-stone-400 font-mono shrink-0">$</span>
+                                <span>{hl}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Education */}
+                  {activeResume.education && activeResume.education.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-bold uppercase text-stone-500 dark:text-stone-400 font-mono">
+                        // 03. ACADEMICS
+                      </h3>
+                      <div className="space-y-1.5">
+                        {activeResume.education.map(edu => (
+                          <div key={edu.id} className="flex justify-between items-baseline">
+                            <span className="text-stone-900 dark:text-white font-bold">
+                              {edu.degree} [{edu.field}] - {edu.institution}
+                            </span>
+                            <span className="text-stone-400 text-[10px]">{edu.year}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Skills / Stack */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase text-stone-500 dark:text-stone-400 font-mono">
+                      // 04. TECH_STACK
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5 font-mono">
+                      {((user.skills && user.skills.length > 0) ? user.skills : activeResume.skills).map((skill, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-700 text-[11px]"
+                        >
+                          #{skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================
+                  TEMPLATE 4: CREATIVE COMPACT (Dual Column Layout)
+                  ========================================================= */}
+              {designConfig.template === 'creative_compact' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Left Column: Profile, Contacts, Skills & Education */}
+                  <div className="space-y-6 md:border-r border-stone-200 dark:border-stone-800 md:pr-6">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white font-display">
+                        {user?.name || 'Your Name'}
+                      </h2>
+                      <p className="text-xs font-bold" style={{ color: designConfig.accentColor }}>
+                        {activeResume.targetRole || 'Target Role'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1 text-[11px] text-stone-600 dark:text-stone-400">
+                      <p className="font-bold text-stone-900 dark:text-white uppercase text-[10px] tracking-wider mb-1">Contact</p>
+                      <p>{user?.location || 'Location'}</p>
+                      <p className="truncate">{user?.email || 'email@example.com'}</p>
+                      <p>{user?.phone || '+91 98765 43210'}</p>
+                    </div>
+
+                    {/* Education */}
+                    {activeResume.education && activeResume.education.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-bold text-stone-900 dark:text-white uppercase text-[10px] tracking-wider">Education</p>
+                        <div className="space-y-2">
+                          {activeResume.education.map(edu => (
+                            <div key={edu.id} className="text-[11px]">
+                              <p className="font-bold text-stone-900 dark:text-white">{edu.degree}</p>
+                              <p className="text-stone-500">{edu.field}</p>
+                              <p className="text-stone-400">{edu.institution} ({edu.year})</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Skills */}
+                    <div className="space-y-2">
+                      <p className="font-bold text-stone-900 dark:text-white uppercase text-[10px] tracking-wider">Skills</p>
+                      <div className="flex flex-wrap gap-1">
+                        {((user.skills && user.skills.length > 0) ? user.skills : activeResume.skills).map((skill, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Summary & Detailed Experience */}
+                  <div className="md:col-span-2 space-y-6">
+                    {/* Summary */}
+                    <div className="space-y-1.5">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-stone-900 dark:text-white border-b pb-1" style={{ borderColor: designConfig.accentColor }}>
+                        Professional Summary
+                      </h3>
+                      <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300">
+                        {activeResume.summary || 'Summary will appear here as you type in the editor.'}
+                      </p>
+                    </div>
+
+                    {/* Work Experience */}
+                    <div className="space-y-4">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-stone-900 dark:text-white border-b pb-1" style={{ borderColor: designConfig.accentColor }}>
+                        Experience
+                      </h3>
+                      <div className="space-y-4">
+                        {activeResume.experiences.map(exp => (
+                          <div key={exp.id} className="space-y-1">
+                            <div className="flex justify-between items-baseline">
+                              <span className="font-bold text-stone-900 dark:text-white text-xs">
+                                {exp.role} <span style={{ color: designConfig.accentColor }}>@ {exp.company}</span>
+                              </span>
+                              <span className="text-[11px] text-stone-400">{exp.startDate} - {exp.endDate}</span>
+                            </div>
+                            <ul className="list-disc list-outside pl-4 space-y-1 text-xs text-stone-600 dark:text-stone-300">
+                              {exp.highlights.map((hl, i) => (
+                                <li key={i}>{hl}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

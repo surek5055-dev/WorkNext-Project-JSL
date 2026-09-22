@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useApp } from '../context/AppContext';
-import { MapPin, Plus, X, Save, CheckCircle2, Sparkles, User as UserIcon, FileText, AlertCircle } from 'lucide-react';
+import { MapPin, Plus, X, Save, CheckCircle2, Sparkles, User as UserIcon, FileText, AlertCircle, LogOut } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { hasSufficientProfileData } from '../types';
 
 export const UserProfilePage: React.FC = () => {
-  const { user, setUser } = useApp();
+  const { user, setUser, logout } = useApp();
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -304,7 +304,19 @@ export const UserProfilePage: React.FC = () => {
             </Link>
           </div>
 
-          <div className="pt-4 border-t border-stone-100 dark:border-stone-800 text-right">
+          <div className="pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
+            <Button
+              id="profile-page-logout-btn"
+              variant="outline"
+              size="md"
+              type="button"
+              onClick={() => logout()}
+              className="border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Log Out</span>
+            </Button>
+
             <Button variant="primary" size="md" icon={<Save className="w-4 h-4" />} type="submit" className="bg-[#0F766E] hover:bg-[#0D655E]">
               Save Profile Changes
             </Button>

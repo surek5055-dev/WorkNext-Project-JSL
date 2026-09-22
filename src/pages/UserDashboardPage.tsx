@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -24,10 +24,15 @@ import {
   Layers,
   UserCheck,
   AlertCircle,
-  Plus
+  Plus,
+  Globe,
+  XCircle,
+  ExternalLink,
+  Building2,
+  MapPin
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { UserProfile, Job, hasSufficientProfileData } from '../types';
+import { UserProfile, Job, hasSufficientProfileData, UserApplication } from '../types';
 
 export interface UserDashboardPageProps {
   user?: UserProfile;
@@ -52,8 +57,43 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
   const savedJobIds = initialSavedJobIds ?? contextApp.savedJobIds;
   const appliedJobIds = initialAppliedJobIds ?? contextApp.appliedJobIds;
 
+  const [appFilter, setAppFilter] = useState<'all' | 'worknext' | 'adzuna'>('all');
+
   const savedJobsCount = savedJobIds.length;
   const appliedJobsCount = appliedJobIds.length;
+
+  // Build unified user applications list from context + applied IDs
+  const userApplications: UserApplication[] = useMemo(() => {
+    const list: UserApplication[] = [...(contextApp.applications || [])];
+    appliedJobIds.forEach(jId => {
+      if (!list.some(a => a.jobId === jId)) {
+        const foundJob = jobs.find(j => j.id === jId);
+        const isExt = foundJob ? (foundJob.source === 'adzuna' || Boolean(foundJob.applyUrl)) : jId.startsWith('adzuna_');
+        list.push({
+          id: `app_${jId}`,
+          jobId: jId,
+          jobTitle: foundJob?.title || 'Applied Position',
+          company: foundJob?.company || 'Company',
+          location: foundJob?.location || '',
+          source: isExt ? 'Adzuna' : 'WorkNext Recruiter',
+          status: 'applied',
+          appliedDate: 'Recent',
+          isExternal: isExt,
+        });
+      }
+    });
+    return list;
+  }, [contextApp.applications, appliedJobIds, jobs]);
+
+  const filteredApplications = useMemo(() => {
+    if (appFilter === 'worknext') {
+      return userApplications.filter(a => !a.isExternal && a.source !== 'Adzuna');
+    }
+    if (appFilter === 'adzuna') {
+      return userApplications.filter(a => a.isExternal || a.source === 'Adzuna');
+    }
+    return userApplications;
+  }, [userApplications, appFilter]);
 
   const hasSufficientData = hasSufficientProfileData(user);
   const displayReadiness = user.hasAnalyzedResume && user.readinessScore && user.readinessScore > 0 ? user.readinessScore : null;
@@ -272,6 +312,231 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
                   <JobCard key={job.id ? `${job.id}-${idx}` : `rec-job-${idx}`} job={job} compact />
                 ))}
               </div>
+            </div>
+
+            {/* Application Status Tracker */}
+            <div className="p-6 sm:p-7 rounded-[24px] bg-white dark:bg-[#1A1D20] border border-stone-200/90 dark:border-stone-800 shadow-md space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-stone-100 dark:border-stone-800">
+                <div>
+                  <h3 className="text-lg font-bold text-stone-900 dark:text-white font-display flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-[#0F766E] dark:text-teal-400" />
+                    My Applications & Status
+                  </h3>
+                  <p className="text-xs text-stone-500 font-sans mt-0.5">
+                    Real-time status updates from WorkNext Recruiters and external job applications.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 p-1 bg-stone-100 dark:bg-stone-800/80 rounded-xl text-xs font-semibold">
+                  <button
+                    onClick={() => setAppFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                      appFilter === 'all'
+                        ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-xs'
+                        : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    All ({userApplications.length})
+                  </button>
+                  <button
+                    onClick={() => setAppFilter('worknext')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                      appFilter === 'worknext'
+                        ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-xs'
+                        : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    WorkNext ({userApplications.filter(a => !a.isExternal && a.source !== 'Adzuna').length})
+                  </button>
+                  <button
+                    onClick={() => setAppFilter('adzuna')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                      appFilter === 'adzuna'
+                        ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-xs'
+                        : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    Adzuna ({userApplications.filter(a => a.isExternal || a.source === 'Adzuna').length})
+                  </button>
+                </div>
+              </div>
+
+              {filteredApplications.length === 0 ? (
+                <div className="py-10 text-center rounded-2xl border border-dashed border-stone-200 dark:border-stone-800 space-y-2">
+                  <Briefcase className="w-8 h-8 text-stone-300 dark:text-stone-600 mx-auto" />
+                  <p className="text-xs font-bold text-stone-800 dark:text-stone-200 font-sans">
+                    {userApplications.length === 0 ? 'No job applications submitted yet.' : 'No applications match this filter.'}
+                  </p>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 font-sans max-w-sm mx-auto">
+                    Browse the Local Job Finder to apply directly to WorkNext recruiters or external partner jobs.
+                  </p>
+                  <div className="pt-2">
+                    <Link to="/jobs">
+                      <Button variant="primary" size="sm" className="bg-[#0F766E] hover:bg-[#0D655E]">
+                        Find Opportunities
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {filteredApplications.map(app => {
+                    const isAdzuna = app.isExternal || app.source === 'Adzuna';
+                    const currentStatus = isAdzuna ? 'applied' : (app.status || 'applied');
+
+                    // Stepper configuration for WorkNext Recruiter pipeline
+                    const steps = [
+                      { key: 'applied', label: 'Applied' },
+                      { key: 'under_review', label: 'Under Review' },
+                      { key: 'shortlisted', label: 'Shortlisted' },
+                      { key: currentStatus === 'rejected' ? 'rejected' : 'selected', label: currentStatus === 'rejected' ? 'Rejected' : 'Selected' }
+                    ];
+
+                    const statusOrder = ['applied', 'under_review', 'shortlisted', currentStatus === 'rejected' ? 'rejected' : 'selected'];
+                    const currentStepIdx = statusOrder.indexOf(currentStatus);
+
+                    return (
+                      <div
+                        key={app.id}
+                        className="p-4 rounded-2xl border border-stone-200/90 dark:border-stone-800 bg-stone-50/70 dark:bg-stone-900/50 hover:bg-white dark:hover:bg-stone-900 transition-all space-y-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              {isAdzuna ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-300/80 dark:border-sky-800/60 text-[10px] font-semibold">
+                                  <Globe className="w-3 h-3" /> Adzuna Partner Job
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/60 text-[10px] font-semibold">
+                                  <Sparkles className="w-3 h-3" /> WorkNext Recruiter Opening
+                                </span>
+                              )}
+                              <span className="text-[11px] text-stone-400 font-sans">
+                                Applied {app.appliedDate}
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-bold text-stone-900 dark:text-white font-display">
+                              {app.jobTitle}
+                            </h4>
+                            <p className="text-xs text-stone-600 dark:text-stone-300 font-sans flex items-center gap-1.5 mt-0.5">
+                              <Building2 className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                              <span>{app.company}</span>
+                              {app.location && (
+                                <>
+                                  <span className="text-stone-300 dark:text-stone-700">•</span>
+                                  <span className="text-stone-400">{app.location}</span>
+                                </>
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isAdzuna ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 dark:bg-teal-950/60 text-[#0F766E] dark:text-teal-400 border border-teal-200/80 dark:border-teal-800/60">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Applied
+                              </span>
+                            ) : (
+                              <>
+                                {currentStatus === 'applied' && (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 dark:bg-teal-950/60 text-[#0F766E] dark:text-teal-400 border border-teal-200/80 dark:border-teal-800/60">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Applied
+                                  </span>
+                                )}
+                                {currentStatus === 'under_review' && (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300/80 dark:border-amber-800/60">
+                                    <Clock className="w-3.5 h-3.5" /> Under Review
+                                  </span>
+                                )}
+                                {currentStatus === 'shortlisted' && (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300/80 dark:border-purple-800/60">
+                                    <Sparkles className="w-3.5 h-3.5" /> Shortlisted
+                                  </span>
+                                )}
+                                {currentStatus === 'selected' && (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/60">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Selected
+                                  </span>
+                                )}
+                                {currentStatus === 'rejected' && (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
+                                    <XCircle className="w-3.5 h-3.5 text-stone-500" /> Not Selected
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Pipeline Stepper for WorkNext Recruiter jobs */}
+                        {!isAdzuna && (
+                          <div className="pt-2 border-t border-stone-200/60 dark:border-stone-800/70">
+                            <div className="flex items-center justify-between gap-1 text-[11px] font-sans">
+                              {steps.map((step, idx) => {
+                                const isPassed = currentStepIdx >= idx && currentStatus !== 'rejected';
+                                const isCurrent = currentStatus === step.key;
+                                const isRejectStep = step.key === 'rejected';
+
+                                let textColor = 'text-stone-400 dark:text-stone-500';
+                                let circleBg = 'bg-stone-200 dark:bg-stone-800 text-stone-500';
+
+                                if (isCurrent) {
+                                  if (step.key === 'rejected') {
+                                    textColor = 'text-rose-600 dark:text-rose-400 font-bold';
+                                    circleBg = 'bg-rose-500 text-white';
+                                  } else if (step.key === 'selected') {
+                                    textColor = 'text-emerald-600 dark:text-emerald-400 font-bold';
+                                    circleBg = 'bg-emerald-600 text-white';
+                                  } else if (step.key === 'shortlisted') {
+                                    textColor = 'text-purple-600 dark:text-purple-400 font-bold';
+                                    circleBg = 'bg-purple-600 text-white';
+                                  } else if (step.key === 'under_review') {
+                                    textColor = 'text-amber-600 dark:text-amber-400 font-bold';
+                                    circleBg = 'bg-amber-500 text-white';
+                                  } else {
+                                    textColor = 'text-[#0F766E] dark:text-teal-400 font-bold';
+                                    circleBg = 'bg-[#0F766E] text-white';
+                                  }
+                                } else if (isPassed) {
+                                  textColor = 'text-stone-700 dark:text-stone-300 font-medium';
+                                  circleBg = 'bg-[#0F766E] text-white';
+                                }
+
+                                return (
+                                  <div key={step.key} className="flex-1 flex flex-col items-center text-center relative">
+                                    {idx > 0 && (
+                                      <div
+                                        className={`absolute top-2.5 -left-1/2 w-full h-0.5 -z-0 ${
+                                          idx <= currentStepIdx && currentStatus !== 'rejected'
+                                            ? 'bg-[#0F766E]'
+                                            : 'bg-stone-200 dark:bg-stone-800'
+                                        }`}
+                                      />
+                                    )}
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold z-10 ${circleBg}`}>
+                                      {isPassed ? '✓' : idx + 1}
+                                    </div>
+                                    <span className={`mt-1 text-[10px] ${textColor}`}>
+                                      {step.label}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Adzuna external note */}
+                        {isAdzuna && (
+                          <p className="text-[11px] text-stone-500 dark:text-stone-400 font-sans pt-1 border-t border-stone-200/50 dark:border-stone-800/60">
+                            Status stays Applied because application was completed on the external Adzuna job platform.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Skill Gap Tracker */}

@@ -14,6 +14,7 @@ import { ResumeBuilderPage } from './pages/ResumeBuilderPage';
 import { LocalJobFinderPage } from './pages/LocalJobFinderPage';
 import { EmploymentDashboardPage } from './pages/EmploymentDashboardPage';
 import { CommunityMentorshipPage } from './pages/CommunityMentorshipPage';
+import { CareerChatbotPage } from './pages/CareerChatbotPage';
 import { JobSeekerRoute } from './components/auth/JobSeekerRoute';
 
 // Recruiter Pages & RBAC Guard
@@ -46,6 +47,8 @@ export default function App() {
           <Route path="/jobs" element={<JobSeekerRoute><LocalJobFinderPage /></JobSeekerRoute>} />
           <Route path="/insights" element={<JobSeekerRoute><EmploymentDashboardPage /></JobSeekerRoute>} />
           <Route path="/community" element={<JobSeekerRoute><CommunityMentorshipPage /></JobSeekerRoute>} />
+          <Route path="/career-chat" element={<CareerChatbotPage />} />
+          <Route path="/chatbot" element={<Navigate to="/career-chat" replace />} />
 
           {/* Recruiter Route with RBAC Protection */}
           <Route

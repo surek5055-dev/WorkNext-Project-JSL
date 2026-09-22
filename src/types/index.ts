@@ -42,6 +42,7 @@ export interface ExtractedCandidateProfile {
   targetRole?: string;
   skills: string[];
   experienceYears?: number;
+  location?: string;
   experiences?: ExtractedExperience[];
   education?: ExtractedEducation[];
 }
@@ -95,7 +96,86 @@ export interface UserProfile {
   extractedProfile?: ExtractedCandidateProfile | null;
   mentorStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   mentorId?: string;
+  recruiterStatus?: 'pending' | 'approved' | 'rejected' | 'suspended';
+  profileCompletion?: number;
   supabaseToken?: string;
+}
+
+export interface ServerUser {
+  id: string;
+  email: string;
+  name?: string;
+  role: UserRole;
+  title?: string;
+  company?: string;
+  location?: string;
+  status?: 'active' | 'suspended';
+  createdAt?: string;
+  appliedCount?: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  timestamp: string;
+  quickReplies?: string[];
+  suggestedAction?: {
+    label: string;
+    link: string;
+  };
+}
+
+export interface RecruiterAccount {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  companyWebsite?: string;
+  title?: string;
+  location?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  jobsCount: number;
+  applicantsCount: number;
+  createdAt: string;
+  reviewedAt?: string;
+  notes?: string;
+}
+
+export interface PlatformReport {
+  id: string;
+  targetType: 'job' | 'recruiter' | 'user' | 'mentor';
+  targetId: string;
+  targetTitle: string;
+  reason: string;
+  details?: string;
+  reporterEmail: string;
+  status: 'pending' | 'investigating' | 'resolved' | 'dismissed';
+  createdAt: string;
+  resolvedAt?: string;
+  actionTaken?: string;
+}
+
+export type ApplicationStatus =
+  | 'applied'
+  | 'under_review'
+  | 'shortlisted'
+  | 'selected'
+  | 'rejected';
+
+export interface UserApplication {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  company: string;
+  location?: string;
+  source: 'WorkNext Recruiter' | 'Adzuna' | 'External' | string;
+  status: ApplicationStatus;
+  appliedDate: string;
+  notes?: string;
+  recruiterId?: string;
+  isExternal?: boolean;
+  updatedAt?: string;
 }
 
 export const hasSufficientProfileData = (user: UserProfile | null | undefined): boolean => {
@@ -141,7 +221,7 @@ export interface ResumeSectionExperience {
   role: string;
   startDate: string;
   endDate: string;
-  current: boolean;
+  current?: boolean;
   highlights: string[];
 }
 

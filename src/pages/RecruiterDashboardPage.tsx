@@ -34,7 +34,10 @@ import {
   PlusCircle,
   FileCheck,
   Star,
-  ChevronLeft
+  ChevronLeft,
+  Ban,
+  XCircle,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
@@ -49,7 +52,7 @@ interface Candidate {
   email: string;
   phone: string;
   bio: string;
-  status: 'applied' | 'screening' | 'interview' | 'offer' | 'archived';
+  status: 'applied' | 'under_review' | 'shortlisted' | 'selected' | 'rejected' | 'screening' | 'interview' | 'offer' | 'archived';
   appliedJobTitle: string;
   appliedDate: string;
   notes?: string;
@@ -147,9 +150,43 @@ export const RecruiterDashboardPage: React.FC = () => {
       }
     };
 
+    const fetchVerificationStatus = async () => {
+      setStatusLoading(true);
+      try {
+        const q = new URLSearchParams();
+        if (user?.id) q.set('recruiterId', user.id);
+        if (user?.email) q.set('recruiterEmail', user.email);
+        if (user?.company) q.set('company', user.company);
+        if (user?.name) q.set('name', user.name);
+
+        const res = await fetch(`/api/recruiter/status?${q.toString()}`, {
+          headers: {
+            'x-recruiter-id': user?.id || '',
+            'x-recruiter-email': user?.email || '',
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.status) {
+            setRecruiterStatus(data.status);
+          }
+        }
+      } catch (err) {
+        console.warn('Error checking recruiter verification status:', err);
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+
     fetchRecruiterJobs();
     fetchRealCandidates();
-  }, []);
+    fetchVerificationStatus();
+  }, [user?.id, user?.email]);
+
+  // Recruiter Verification Status ('pending' | 'approved' | 'rejected' | 'suspended')
+  const [recruiterStatus, setRecruiterStatus] = useState<'pending' | 'approved' | 'rejected' | 'suspended'>('approved');
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [postErrorAlert, setPostErrorAlert] = useState<string | null>(null);
 
   // Selected Candidate for Detailed Credentials Modal
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -202,9 +239,21 @@ export const RecruiterDashboardPage: React.FC = () => {
   };
 
   // Handle Create Job Post
-  const handleCreatePost = (e: React.FormEvent) => {
+  const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPostErrorAlert(null);
     if (!newJob.title.trim() || !newJob.company.trim()) return;
+
+    if (recruiterStatus !== 'approved') {
+      setPostErrorAlert(
+        recruiterStatus === 'pending'
+          ? 'Recruiter verification pending: Your account is currently under administrator review. Job postings can only be published once verified by a WorkNext administrator.'
+          : recruiterStatus === 'rejected'
+          ? 'Verification not approved: Your recruiter account is not authorized to publish job listings. Please contact admin support.'
+          : 'Account suspended: Your recruiter privileges are paused by the platform administrator.'
+      );
+      return;
+    }
 
     const created: Job = {
       id: 'job_' + Date.now(),
@@ -230,7 +279,12 @@ export const RecruiterDashboardPage: React.FC = () => {
       recruiterEmail: user.email || '',
     };
 
-    addJob(created);
+    const result = await addJob(created);
+    if (!result?.success) {
+      setPostErrorAlert(result?.error || 'Failed to publish job opening. Please ensure your recruiter status is approved.');
+      return;
+    }
+
     setRecruiterJobs(prev => [created, ...prev]);
     setPostSuccessAlert(true);
     setNewJob({
@@ -302,8 +356,17 @@ export const RecruiterDashboardPage: React.FC = () => {
 
   // Filter States
   const [candidateFilter, setCandidateFilter] = useState<'all' | '90' | '80'>('all');
-  const [applicationStageFilter, setApplicationStageFilter] = useState<'all' | 'applied' | 'screening' | 'interview' | 'offer'>('all');
+  const [applicationStageFilter, setApplicationStageFilter] = useState<'all' | 'applied' | 'under_review' | 'shortlisted' | 'selected' | 'rejected'>('all');
   const [jobSearchQuery, setJobSearchQuery] = useState('');
+
+  const normalizeStatus = (status: string): 'applied' | 'under_review' | 'shortlisted' | 'selected' | 'rejected' => {
+    if (status === 'screening') return 'under_review';
+    if (status === 'interview') return 'shortlisted';
+    if (status === 'offer') return 'selected';
+    if (status === 'archived') return 'rejected';
+    if (status === 'under_review' || status === 'shortlisted' || status === 'selected' || status === 'rejected') return status;
+    return 'applied';
+  };
 
   const filteredCandidates = candidates.filter(c => {
     if (candidateFilter === '90') return c.matchScore >= 90;
@@ -313,7 +376,7 @@ export const RecruiterDashboardPage: React.FC = () => {
 
   const filteredApplications = candidates.filter(c => {
     if (applicationStageFilter === 'all') return true;
-    return c.status === applicationStageFilter;
+    return normalizeStatus(c.status) === applicationStageFilter;
   });
 
   const filteredJobs = recruiterJobs.filter(j => {
@@ -322,11 +385,12 @@ export const RecruiterDashboardPage: React.FC = () => {
     return j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q) || j.location.toLowerCase().includes(q);
   });
 
-  // Pipeline counts
-  const countApplied = candidates.filter(c => c.status === 'applied').length;
-  const countScreening = candidates.filter(c => c.status === 'screening').length;
-  const countInterview = candidates.filter(c => c.status === 'interview').length;
-  const countOffer = candidates.filter(c => c.status === 'offer').length;
+  // WorkNext Recruiter Pipeline counts: Applied -> Under Review -> Shortlisted -> Selected / Rejected
+  const countApplied = candidates.filter(c => normalizeStatus(c.status) === 'applied').length;
+  const countUnderReview = candidates.filter(c => normalizeStatus(c.status) === 'under_review').length;
+  const countShortlisted = candidates.filter(c => normalizeStatus(c.status) === 'shortlisted').length;
+  const countSelected = candidates.filter(c => normalizeStatus(c.status) === 'selected').length;
+  const countRejected = candidates.filter(c => normalizeStatus(c.status) === 'rejected').length;
 
   return (
     <DashboardLayout>
@@ -334,10 +398,31 @@ export const RecruiterDashboardPage: React.FC = () => {
         {/* Top Header & Navigation Tabs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-stone-200/80 dark:border-stone-800">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/60 border border-teal-200/80 dark:border-teal-800/50 text-xs font-semibold text-[#0F766E] dark:text-teal-400">
-                <Building2 className="w-3.5 h-3.5" />
-                Verified Recruiter Workspace
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Recruiter Verification Status Badge */}
+              <span
+                id="recruiter-verification-status-badge"
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                  recruiterStatus === 'approved'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                    : recruiterStatus === 'pending'
+                    ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                    : recruiterStatus === 'rejected'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400'
+                    : 'bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300'
+                }`}
+                title={`Verification Status: ${recruiterStatus}`}
+              >
+                {recruiterStatus === 'approved' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                {recruiterStatus === 'pending' && <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />}
+                {recruiterStatus === 'rejected' && <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />}
+                {recruiterStatus === 'suspended' && <Ban className="w-3.5 h-3.5 text-stone-500" />}
+                <span>
+                  {recruiterStatus === 'approved' && 'Verified Recruiter'}
+                  {recruiterStatus === 'pending' && 'Verification Pending'}
+                  {recruiterStatus === 'rejected' && 'Verification Rejected'}
+                  {recruiterStatus === 'suspended' && 'Account Suspended'}
+                </span>
               </span>
               <span className="text-xs text-stone-400 dark:text-stone-500">•</span>
               <span className="text-xs text-stone-500 dark:text-stone-400 font-medium">
@@ -412,8 +497,65 @@ export const RecruiterDashboardPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Global Notifications for Job or Profile Actions */}
+        {/* Global Notifications for Job, Profile, or Verification Status */}
         <AnimatePresence>
+          {postErrorAlert && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-medium flex items-center justify-between shadow-xs"
+            >
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                <span>{postErrorAlert}</span>
+              </div>
+              <button
+                onClick={() => setPostErrorAlert(null)}
+                className="font-bold text-rose-600 dark:text-rose-400 hover:opacity-80 ml-4 px-2 py-0.5 cursor-pointer"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+
+          {recruiterStatus !== 'approved' && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-4 rounded-2xl border text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
+                recruiterStatus === 'pending'
+                  ? 'bg-amber-50/90 dark:bg-amber-950/60 border-amber-200/90 dark:border-amber-800/70 text-amber-900 dark:text-amber-200'
+                  : recruiterStatus === 'rejected'
+                  ? 'bg-rose-50/90 dark:bg-rose-950/60 border-rose-200/90 dark:border-rose-800/70 text-rose-900 dark:text-rose-200'
+                  : 'bg-stone-100 dark:bg-stone-900 border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-300'
+              }`}
+            >
+              <div className="flex items-start sm:items-center gap-3">
+                {recruiterStatus === 'pending' && <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />}
+                {recruiterStatus === 'rejected' && <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5 sm:mt-0" />}
+                {recruiterStatus === 'suspended' && <Ban className="w-4 h-4 text-stone-500 shrink-0 mt-0.5 sm:mt-0" />}
+                <div>
+                  <span className="font-bold mr-1.5">
+                    {recruiterStatus === 'pending' && 'Account Verification Under Review:'}
+                    {recruiterStatus === 'rejected' && 'Account Verification Rejected:'}
+                    {recruiterStatus === 'suspended' && 'Account Suspended:'}
+                  </span>
+                  <span>
+                    {recruiterStatus === 'pending' && 'Your corporate recruiter credentials have been submitted for administrator verification. Publishing live job postings is temporarily disabled until approved.'}
+                    {recruiterStatus === 'rejected' && 'Your recruiter organization application was not approved by administration. Please contact admin@worknext.io to request re-evaluation.'}
+                    {recruiterStatus === 'suspended' && 'Your hiring privileges have been temporarily paused by an administrator.'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-white/70 dark:bg-stone-800/70 border border-current/20 font-bold uppercase tracking-wider">
+                  Status: {recruiterStatus}
+                </span>
+              </div>
+            </motion.div>
+          )}
+
           {postSuccessAlert && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -603,15 +745,47 @@ export const RecruiterDashboardPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form Section */}
             <div className="lg:col-span-2 p-8 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-6">
-              <div>
-                <h2 className="text-lg font-bold text-stone-900 dark:text-white font-display flex items-center gap-2">
-                  <PlusCircle className="w-5 h-5 text-[#0F766E] dark:text-teal-400" />
-                  Create Verified Job Opening
-                </h2>
-                <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
-                  List positions with transparent salary bands to match verified skill profiles immediately.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-stone-900 dark:text-white font-display flex items-center gap-2">
+                    <PlusCircle className="w-5 h-5 text-[#0F766E] dark:text-teal-400" />
+                    Create Verified Job Opening
+                  </h2>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+                    List positions with transparent salary bands to match verified skill profiles immediately.
+                  </p>
+                </div>
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold self-start border ${
+                  recruiterStatus === 'approved'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 text-emerald-700 dark:text-emerald-400'
+                    : recruiterStatus === 'pending'
+                    ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 text-amber-800 dark:text-amber-300'
+                    : 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 text-rose-700 dark:text-rose-400'
+                }`}>
+                  {recruiterStatus === 'approved' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                  <span>Posting: {recruiterStatus === 'approved' ? 'Active' : 'Locked (' + recruiterStatus + ')'}</span>
+                </span>
               </div>
+
+              {recruiterStatus !== 'approved' && (
+                <div className={`p-4 rounded-xl border text-xs flex items-start gap-3 ${
+                  recruiterStatus === 'pending'
+                    ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                    : 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                }`}>
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">
+                      {recruiterStatus === 'pending' ? 'Administrator Approval Required' : 'Recruiter Account Not Approved'}
+                    </p>
+                    <p className="mt-0.5 leading-relaxed">
+                      {recruiterStatus === 'pending'
+                        ? 'Your recruiter account is currently pending administrator verification in the WorkNext Admin Console. You may draft your job posting below, but publishing live will become available once approved.'
+                        : 'Your recruiter verification was rejected or suspended. Live job postings cannot be published.'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleCreatePost} className="space-y-4 text-xs">
                 <div className="space-y-1">
@@ -746,8 +920,20 @@ export const RecruiterDashboardPage: React.FC = () => {
                   <Button variant="outline" size="sm" type="button" onClick={() => setTab('openings')}>
                     Cancel
                   </Button>
-                  <Button variant="primary" size="sm" type="submit" className="bg-[#0F766E] hover:bg-[#0D655E]">
-                    Publish Opening Live
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="submit"
+                    disabled={recruiterStatus !== 'approved'}
+                    className={`bg-[#0F766E] hover:bg-[#0D655E] ${recruiterStatus !== 'approved' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    {recruiterStatus === 'approved'
+                      ? 'Publish Opening Live'
+                      : recruiterStatus === 'pending'
+                      ? 'Pending Admin Approval'
+                      : recruiterStatus === 'rejected'
+                      ? 'Verification Rejected'
+                      : 'Account Suspended'}
                   </Button>
                 </div>
               </form>
@@ -1114,9 +1300,10 @@ export const RecruiterDashboardPage: React.FC = () => {
                 {[
                   { id: 'all', label: 'All' },
                   { id: 'applied', label: 'Applied' },
-                  { id: 'screening', label: 'Screening' },
-                  { id: 'interview', label: 'Interview' },
-                  { id: 'offer', label: 'Offer' },
+                  { id: 'under_review', label: 'Under Review' },
+                  { id: 'shortlisted', label: 'Shortlisted' },
+                  { id: 'selected', label: 'Selected' },
+                  { id: 'rejected', label: 'Rejected' },
                 ].map(stage => (
                   <button
                     key={stage.id}
@@ -1143,7 +1330,7 @@ export const RecruiterDashboardPage: React.FC = () => {
                 <h3 className="text-sm font-bold text-stone-900 dark:text-white font-display">No applications yet</h3>
                 <p className="text-xs text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
                   {applicationStageFilter !== 'all'
-                    ? `No applications currently in the "${applicationStageFilter}" stage.`
+                    ? `No applications currently in the "${applicationStageFilter.replace('_', ' ')}" stage.`
                     : 'No candidate applications have been received yet.'}
                 </p>
                 {applicationStageFilter !== 'all' && (
@@ -1191,15 +1378,15 @@ export const RecruiterDashboardPage: React.FC = () => {
                       </div>
 
                       <select
-                        value={app.status}
+                        value={normalizeStatus(app.status)}
                         onChange={e => updateCandidateStatus(app.id, e.target.value as any)}
                         className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#0F766E]"
                       >
-                        <option value="applied">Applied (New)</option>
-                        <option value="screening">Screening</option>
-                        <option value="interview">Interview</option>
-                        <option value="offer">Offer Extended</option>
-                        <option value="archived">Archived</option>
+                        <option value="applied">Applied</option>
+                        <option value="under_review">Under Review</option>
+                        <option value="shortlisted">Shortlisted</option>
+                        <option value="selected">Selected</option>
+                        <option value="rejected">Rejected</option>
                       </select>
 
                       <Button
@@ -1244,18 +1431,19 @@ export const RecruiterDashboardPage: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-start">
               {[
-                { id: 'applied', title: '1. Applied (New)', color: 'border-blue-500/40 bg-blue-500/5' },
-                { id: 'screening', title: '2. Screening & Review', color: 'border-amber-500/40 bg-amber-500/5' },
-                { id: 'interview', title: '3. Interview Scheduled', color: 'border-purple-500/40 bg-purple-500/5' },
-                { id: 'offer', title: '4. Offer Extended', color: 'border-emerald-500/40 bg-emerald-500/5' }
+                { id: 'applied', title: '1. Applied', prev: null, next: 'under_review' as const },
+                { id: 'under_review', title: '2. Under Review', prev: 'applied' as const, next: 'shortlisted' as const },
+                { id: 'shortlisted', title: '3. Shortlisted', prev: 'under_review' as const, next: 'selected' as const },
+                { id: 'selected', title: '4. Selected', prev: 'shortlisted' as const, next: null },
+                { id: 'rejected', title: '5. Rejected', prev: 'under_review' as const, next: null }
               ].map(col => {
-                const colCandidates = candidates.filter(c => c.status === col.id);
+                const colCandidates = candidates.filter(c => normalizeStatus(c.status) === col.id);
                 return (
                   <div
                     key={col.id}
-                    className="p-4 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-4"
+                    className="p-3.5 rounded-[20px] bg-white dark:bg-[#1A1A1A] border border-stone-200/90 dark:border-stone-800 shadow-xs space-y-3"
                   >
                     <div className="flex items-center justify-between pb-2 border-b border-stone-100 dark:border-stone-800">
                       <h3 className="text-xs font-bold text-stone-900 dark:text-white font-display">{col.title}</h3>
@@ -1264,67 +1452,77 @@ export const RecruiterDashboardPage: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="space-y-3 min-h-[300px]">
+                    <div className="space-y-3 min-h-[260px]">
                       {colCandidates.map(candidate => (
                         <div
                           key={candidate.id}
-                          className="p-3.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 space-y-2.5 hover:shadow-xs transition-shadow"
+                          className="p-3 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 space-y-2 hover:shadow-xs transition-shadow"
                         >
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start justify-between gap-1.5">
                             <div>
                               <h4 className="text-xs font-bold text-stone-900 dark:text-white font-display">{candidate.name}</h4>
-                              <p className="text-[11px] text-stone-500 dark:text-stone-400">{candidate.appliedJobTitle}</p>
+                              <p className="text-[10px] text-stone-500 dark:text-stone-400 line-clamp-1">{candidate.appliedJobTitle}</p>
                             </div>
-                            <span className="text-[10px] font-mono font-bold text-[#0F766E] dark:text-teal-400">
+                            <span className="text-[10px] font-mono font-bold text-[#0F766E] dark:text-teal-400 shrink-0">
                               {candidate.matchScore}%
                             </span>
                           </div>
 
                           {candidate.notes && (
-                            <p className="text-[11px] text-stone-600 dark:text-stone-300 italic bg-white dark:bg-stone-800/60 p-2 rounded-lg border border-stone-200/60 dark:border-stone-700/50">
+                            <p className="text-[10px] text-stone-600 dark:text-stone-300 italic bg-white dark:bg-stone-800/60 p-1.5 rounded-lg border border-stone-200/60 dark:border-stone-700/50 line-clamp-2">
                               "{candidate.notes}"
                             </p>
                           )}
 
-                          <div className="flex items-center justify-between pt-1 border-t border-stone-200/60 dark:border-stone-800 text-xs">
+                          {/* Quick Status Select */}
+                          <div className="pt-1">
+                            <select
+                              value={normalizeStatus(candidate.status)}
+                              onChange={e => updateCandidateStatus(candidate.id, e.target.value as any)}
+                              className="w-full text-[11px] font-semibold py-1 px-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#0F766E]"
+                            >
+                              <option value="applied">Applied</option>
+                              <option value="under_review">Under Review</option>
+                              <option value="shortlisted">Shortlisted</option>
+                              <option value="selected">Selected</option>
+                              <option value="rejected">Rejected</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1.5 border-t border-stone-200/60 dark:border-stone-800 text-xs">
                             <button
                               onClick={() => setSelectedCandidate(candidate)}
-                              className="text-[11px] text-[#0F766E] dark:text-teal-400 font-bold hover:underline cursor-pointer"
+                              className="text-[10px] text-[#0F766E] dark:text-teal-400 font-bold hover:underline cursor-pointer"
                             >
                               Details
                             </button>
 
                             <div className="flex items-center gap-1">
-                              {col.id !== 'applied' && (
+                              {col.prev && (
                                 <button
-                                  title="Move to previous stage"
-                                  onClick={() => {
-                                    const prevStages: Record<string, Candidate['status']> = {
-                                      screening: 'applied',
-                                      interview: 'screening',
-                                      offer: 'interview'
-                                    };
-                                    updateCandidateStatus(candidate.id, prevStages[col.id]);
-                                  }}
+                                  title={`Move back to ${col.prev.replace('_', ' ')}`}
+                                  onClick={() => updateCandidateStatus(candidate.id, col.prev!)}
                                   className="p-1 rounded bg-stone-200/70 dark:bg-stone-800 hover:bg-stone-300 text-stone-700 dark:text-stone-300 cursor-pointer"
                                 >
                                   <ChevronLeft className="w-3 h-3" />
                                 </button>
                               )}
-                              {col.id !== 'offer' && (
+                              {col.next && (
                                 <button
-                                  title="Advance to next stage"
-                                  onClick={() => {
-                                    const nextStages: Record<string, Candidate['status']> = {
-                                      applied: 'screening',
-                                      screening: 'interview',
-                                      interview: 'offer'
-                                    };
-                                    updateCandidateStatus(candidate.id, nextStages[col.id]);
-                                  }}
+                                  title={`Advance to ${col.next.replace('_', ' ')}`}
+                                  onClick={() => updateCandidateStatus(candidate.id, col.next!)}
                                   className="p-1 rounded bg-teal-600 hover:bg-teal-500 text-white cursor-pointer"
                                 >
                                   <ChevronRight className="w-3 h-3" />
+                                </button>
+                              )}
+                              {col.id === 'shortlisted' && (
+                                <button
+                                  title="Reject candidate"
+                                  onClick={() => updateCandidateStatus(candidate.id, 'rejected')}
+                                  className="p-1 rounded bg-red-100 dark:bg-red-950/60 hover:bg-red-200 text-red-600 dark:text-red-400 cursor-pointer"
+                                >
+                                  <X className="w-3 h-3" />
                                 </button>
                               )}
                             </div>
@@ -1333,8 +1531,8 @@ export const RecruiterDashboardPage: React.FC = () => {
                       ))}
 
                       {colCandidates.length === 0 && (
-                        <div className="p-6 rounded-xl border border-dashed border-stone-200 dark:border-stone-800 text-center text-xs text-stone-400">
-                          No candidates yet
+                        <div className="p-4 rounded-xl border border-dashed border-stone-200 dark:border-stone-800 text-center text-[11px] text-stone-400">
+                          No candidates
                         </div>
                       )}
                     </div>
@@ -1550,22 +1748,45 @@ export const RecruiterDashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100 dark:border-stone-800">
-                  <Button variant="outline" size="sm" onClick={() => setSelectedCandidate(null)}>
-                    Close
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="bg-[#0F766E] hover:bg-[#0D655E]"
-                    onClick={() => {
-                      updateCandidateStatus(selectedCandidate.id, 'interview');
-                      setSelectedCandidate(null);
-                      setTab('management');
-                    }}
-                  >
-                    Move to Interview
-                  </Button>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-stone-100 dark:border-stone-800">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300 whitespace-nowrap">Status:</span>
+                    <select
+                      value={normalizeStatus(selectedCandidate.status)}
+                      onChange={e => {
+                        const newSt = e.target.value as any;
+                        updateCandidateStatus(selectedCandidate.id, newSt);
+                        setSelectedCandidate(prev => prev ? { ...prev, status: newSt } : null);
+                      }}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#0F766E]"
+                    >
+                      <option value="applied">Applied</option>
+                      <option value="under_review">Under Review</option>
+                      <option value="shortlisted">Shortlisted</option>
+                      <option value="selected">Selected</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedCandidate(null)}>
+                      Close
+                    </Button>
+                    {normalizeStatus(selectedCandidate.status) !== 'shortlisted' && normalizeStatus(selectedCandidate.status) !== 'selected' && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="bg-[#0F766E] hover:bg-[#0D655E]"
+                        onClick={() => {
+                          updateCandidateStatus(selectedCandidate.id, 'shortlisted');
+                          setSelectedCandidate(null);
+                          setTab('management');
+                        }}
+                      >
+                        Shortlist Candidate
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             </div>

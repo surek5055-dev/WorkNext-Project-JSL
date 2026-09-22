@@ -1,7 +1,7 @@
 import { Job, Resume, Mentor, NotificationItem, EmploymentStat, Testimonial, FAQItem, UserProfile } from '../types';
 
 export const emptyUserProfile: UserProfile = {
-  id: 'usr_init',
+  id: '',
   name: '',
   email: '',
   role: 'jobseeker',

@@ -145,3 +145,32 @@ html.light ::-webkit-scrollbar-track {
 .hero-glow-brass {
   background: radial-gradient(circle at center, rgba(212, 160, 23, 0.13) 0%, rgba(180, 130, 15, 0.04) 45%, transparent 72%);
 }
+
+/* Print / PDF Export Styles for ATS Resume */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  /* Hide app navigation, headers, and editor panels during PDF printing */
+  nav, header, aside, .no-print, button:not(.print-include), .sidebar-container, [role="navigation"] {
+    display: none !important;
+  }
+
+  .resume-print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  @page {
+    margin: 15mm 15mm 15mm 15mm;
+    size: A4 portrait;
+  }
+}

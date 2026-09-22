@@ -41,7 +41,11 @@ export const SignUpPage: React.FC = () => {
         data.user.role,
         data.session?.access_token
       );
-      navigate('/dashboard');
+      if (role === 'recruiter' || data.user.role === 'recruiter') {
+        navigate('/recruiter');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to create account. Please check your details.');
     } finally {

@@ -16,11 +16,13 @@ import {
   ChevronRight,
   ShieldCheck,
   PlusCircle,
-  FileCheck
+  FileCheck,
+  Bot,
+  LogOut
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
-  const { user, isLoggedIn, isAdminLoggedIn, adminUser, jobs } = useApp();
+  const { user, isLoggedIn, logout, isAdminLoggedIn, adminUser, jobs } = useApp();
   const location = useLocation();
 
   const isRecruiter = isLoggedIn && (user?.role === 'recruiter' || (user?.role as string) === 'employer');
@@ -34,6 +36,7 @@ export const Sidebar: React.FC = () => {
     { label: 'Overview Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
     { label: 'User Profile', path: '/profile', icon: <User className="w-4 h-4" /> },
     { label: 'AI Resume Builder', path: '/resume', icon: <FileText className="w-4 h-4" /> },
+    { label: 'AI Career Chatbot', path: '/career-chat', icon: <Bot className="w-4 h-4" /> },
     { label: 'Local Job Finder', path: '/jobs', icon: <Briefcase className="w-4 h-4" /> },
     { label: 'Employment Insights', path: '/insights', icon: <BarChart3 className="w-4 h-4" /> },
     { label: 'Mentors & Community', path: '/community', icon: <Users className="w-4 h-4" /> },
@@ -170,6 +173,23 @@ export const Sidebar: React.FC = () => {
               </Link>
             );
           })}
+
+          {isLoggedIn && (
+            <div className="pt-2 mt-1 border-t border-stone-100 dark:border-slate-800/80">
+              <button
+                id="sidebar-logout-btn"
+                type="button"
+                onClick={() => logout()}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left group"
+              >
+                <div className="flex items-center gap-3">
+                  <LogOut className="w-4 h-4 text-rose-500 group-hover:rotate-6 transition-transform" />
+                  <span>Log Out</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quick Upskill CTA - REMOVED FOR RECRUITERS (Job seekers only) */}

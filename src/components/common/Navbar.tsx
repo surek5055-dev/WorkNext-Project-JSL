@@ -10,7 +10,8 @@ import {
   Sun,
   Moon,
   Menu,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -19,6 +20,7 @@ export const Navbar: React.FC = () => {
     theme,
     toggleTheme,
     isLoggedIn,
+    logout,
     user,
     adminUser,
     isAdminLoggedIn,
@@ -47,6 +49,7 @@ export const Navbar: React.FC = () => {
     { name: t('nav.home'), path: '/' },
     { name: t('nav.jobs'), path: '/jobs' },
     { name: t('nav.resume'), path: '/resume' },
+    { name: 'AI Career Chatbot', path: '/career-chat' },
     { name: t('nav.insights'), path: '/insights' },
     { name: t('nav.community'), path: '/community' },
     ...(isAdmin ? [{ name: 'Admin Console', path: '/admin/dashboard' }] : []),
@@ -144,7 +147,20 @@ export const Navbar: React.FC = () => {
             {/* Profile Dropdown or Auth Action Buttons */}
             <div className="pl-1 border-l border-stone-200/80 dark:border-stone-800/80 flex items-center gap-2">
               {isLoggedIn ? (
-                <ProfileDropdown />
+                <div className="flex items-center gap-2">
+                  <ProfileDropdown />
+                  <button
+                    id="header-logout-btn"
+                    type="button"
+                    onClick={() => logout()}
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors cursor-pointer"
+                    title="Log Out of WorkNext"
+                    aria-label="Log Out"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
+                  </button>
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <Link to="/login">
@@ -196,17 +212,44 @@ export const Navbar: React.FC = () => {
                 {link.name}
               </Link>
             ))}
-            <div className="pt-4 border-t border-stone-200 dark:border-stone-800/80 grid grid-cols-2 gap-2">
-              <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" size="sm" fullWidth>
-                  Log In
-                </Button>
-              </Link>
-              <Link to="/signup" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="primary" size="sm" fullWidth>
-                  Sign Up
-                </Button>
-              </Link>
+            <div className="pt-4 border-t border-stone-200 dark:border-stone-800/80">
+              {isLoggedIn ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-2 py-1 text-xs text-stone-500 dark:text-stone-400 font-mono">
+                    <span>Signed in:</span>
+                    <span className="font-bold text-stone-800 dark:text-stone-200 truncate max-w-[180px]">
+                      {user.name || user.email || 'User'}
+                    </span>
+                  </div>
+                  <Button
+                    id="mobile-nav-logout-btn"
+                    variant="outline"
+                    size="sm"
+                    fullWidth
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="border-rose-300 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Log Out</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="outline" size="sm" fullWidth>
+                      Log In
+                    </Button>
+                  </Link>
+                  <Link to="/signup" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="primary" size="sm" fullWidth>
+                      Sign Up
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

@@ -7,7 +7,7 @@ import { JobCard } from '../components/cards/JobCard';
 import { JobFilterForm } from '../components/forms/JobFilterForm';
 import { PlaceholderCard } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
-import { Sparkles, X, CheckCircle2, Briefcase, FileText, ArrowRight, AlertCircle, Award, ExternalLink, Globe, Building2 } from 'lucide-react';
+import { Sparkles, X, CheckCircle2, Briefcase, FileText, ArrowRight, AlertCircle, Award, ExternalLink, Globe, Building2, Clock, XCircle } from 'lucide-react';
 
 export interface LocalJobFinderPageProps {
   jobs?: Job[];
@@ -25,7 +25,7 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
   appliedJobIds: initialAppliedJobIds
 }) => {
   const contextApp = useApp();
-  const { user } = contextApp;
+  const { user, applications } = contextApp;
   const jobs = initialJobs ?? contextApp.jobs;
   const applyForJob = onApplyForJob ?? contextApp.applyForJob;
   const toggleSaveJob = onToggleSaveJob ?? contextApp.toggleSaveJob;
@@ -273,12 +273,9 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
       (typeof job.id === 'string' && (job.id.startsWith('adzuna_') || job.id.startsWith('linkedin_'))) ||
       (Boolean(job.applyUrl) && job.source !== 'worknext');
 
-    // External jobs: clicking Apply Now only opens the external application URL.
-    // Do NOT mark as Applied without confirmed API integration; keep status as Apply Now.
+    // External jobs: applyForJob opens external URL in new tab and immediately marks Applied with notification
     if (isExternal) {
-      if (job.applyUrl) {
-        window.open(job.applyUrl, '_blank', 'noopener,noreferrer');
-      }
+      applyForJob(job.id, job);
       return;
     }
 
@@ -697,9 +694,7 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
                         (selectedJob.id.startsWith('adzuna_') || selectedJob.id.startsWith('linkedin_'))) ||
                       (Boolean(selectedJob.applyUrl) && selectedJob.source !== 'worknext');
 
-                    const isConfirmedApplied = isSelectedExternal
-                      ? Boolean(selectedJob.externalConfirmedSubmission)
-                      : appliedJobIds.includes(selectedJob.id);
+                    const isApplied = appliedJobIds.includes(selectedJob.id);
 
                     if (selectedJob.status === 'closed') {
                       return (
@@ -709,9 +704,53 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
                       );
                     }
 
-                    if (isConfirmedApplied) {
+                    if (isApplied) {
+                      // External/Adzuna jobs: always show status as Applied; never show Selected or Rejected
+                      if (isSelectedExternal) {
+                        return (
+                          <Button variant="outline" size="md" disabled className="text-[#0F766E] dark:text-teal-400 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 flex items-center gap-1.5 font-sans">
+                            <CheckCircle2 className="w-4 h-4" /> Applied
+                          </Button>
+                        );
+                      }
+
+                      // WorkNext Recruiter jobs: Show live pipeline status
+                      const userApp = applications.find(
+                        a => a.jobId === selectedJob.id || (a.jobTitle?.toLowerCase() === selectedJob.title?.toLowerCase() && a.company?.toLowerCase() === selectedJob.company?.toLowerCase())
+                      );
+                      const st = userApp?.status || 'applied';
+
+                      if (st === 'under_review') {
+                        return (
+                          <Button variant="outline" size="md" disabled className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 flex items-center gap-1.5 font-sans">
+                            <Clock className="w-4 h-4 text-amber-600" /> Under Review
+                          </Button>
+                        );
+                      }
+                      if (st === 'shortlisted') {
+                        return (
+                          <Button variant="outline" size="md" disabled className="text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/40 flex items-center gap-1.5 font-sans font-medium">
+                            <Sparkles className="w-4 h-4 text-purple-600" /> Shortlisted
+                          </Button>
+                        );
+                      }
+                      if (st === 'selected') {
+                        return (
+                          <Button variant="outline" size="md" disabled className="text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 flex items-center gap-1.5 font-sans font-bold">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Selected
+                          </Button>
+                        );
+                      }
+                      if (st === 'rejected') {
+                        return (
+                          <Button variant="outline" size="md" disabled className="text-stone-600 dark:text-stone-400 border-stone-300 dark:border-stone-700 bg-stone-100 dark:bg-stone-900 flex items-center gap-1.5 font-sans">
+                            <XCircle className="w-4 h-4 text-stone-500" /> Rejected
+                          </Button>
+                        );
+                      }
+
                       return (
-                        <Button variant="outline" size="md" disabled className="text-[#0F766E] border-teal-200 bg-teal-50 flex items-center gap-1.5">
+                        <Button variant="outline" size="md" disabled className="text-[#0F766E] dark:text-teal-400 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 flex items-center gap-1.5 font-sans">
                           <CheckCircle2 className="w-4 h-4" /> Applied
                         </Button>
                       );
@@ -719,16 +758,16 @@ export const LocalJobFinderPage: React.FC<LocalJobFinderPageProps> = ({
 
                     if (isSelectedExternal && selectedJob.applyUrl) {
                       return (
-                        <a
-                          href={selectedJob.applyUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex"
+                        <Button
+                          variant="primary"
+                          size="md"
+                          onClick={() => {
+                            applyForJob(selectedJob.id, selectedJob);
+                          }}
+                          className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center gap-2 cursor-pointer"
                         >
-                          <Button variant="primary" size="md" className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center gap-2">
-                            Apply Now <ExternalLink className="w-4 h-4" />
-                          </Button>
-                        </a>
+                          Apply Now <ExternalLink className="w-4 h-4" />
+                        </Button>
                       );
                     }
 

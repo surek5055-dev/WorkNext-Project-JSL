@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Job } from '../../types';
 import { Button } from '../ui/Button';
-import { MapPin, DollarSign, Sparkles, Bookmark, BookmarkCheck, Users, Clock, CheckCircle2, ExternalLink, Globe } from 'lucide-react';
+import { MapPin, DollarSign, Sparkles, Bookmark, BookmarkCheck, Users, Clock, CheckCircle2, ExternalLink, Globe, XCircle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 interface JobCardProps {
@@ -12,7 +12,7 @@ interface JobCardProps {
 }
 
 export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false }) => {
-  const { savedJobIds, appliedJobIds, toggleSaveJob, applyForJob } = useApp();
+  const { savedJobIds, appliedJobIds, toggleSaveJob, applyForJob, applications } = useApp();
 
   const isSaved = savedJobIds.includes(job.id);
 
@@ -25,17 +25,13 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
     (typeof job.id === 'string' && (job.id.startsWith('adzuna_') || job.id.startsWith('linkedin_'))) ||
     (Boolean(job.applyUrl) && job.source !== 'worknext');
 
-  // For external jobs:
-  // Show Apply Now before application.
-  // Clicking Apply Now only opens the external application URL.
-  // Do NOT mark as Applied when the link opens or when returning to WorkNext.
-  // Mark Applied ONLY when there is a real confirmation that external application was successfully submitted via supported API.
-  // If no external submission confirmation is available, keep status as Apply Now.
-  // Never fake or assume an application was submitted.
-  // WorkNext Recruiter applications remain separate and use WorkNext's own application status.
-  const isConfirmedApplied = isExternal
-    ? Boolean(job.externalConfirmedSubmission)
-    : appliedJobIds.includes(job.id);
+  // Applied status is stored by user ID + job ID and reflected in appliedJobIds
+  const isApplied = appliedJobIds.includes(job.id);
+
+  // Match application for WorkNext Recruiter live status tracking
+  const userApplication = applications.find(
+    a => a.jobId === job.id || (a.jobTitle?.toLowerCase() === job.title?.toLowerCase() && a.company?.toLowerCase() === job.company?.toLowerCase())
+  );
 
   const formatSalary = (min: number, max: number, period: string) => {
     if (!min && !max) {
@@ -181,35 +177,96 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelect, compact = false
             </Button>
           )}
 
-          {isConfirmedApplied ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              className="text-[#0F766E] border-teal-200 bg-teal-50 flex items-center justify-center min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" /> Applied
-            </Button>
+          {isApplied ? (
+            (() => {
+              // External/Adzuna jobs: always show status as Applied; never show Selected or Rejected
+              if (isExternal) {
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="text-[#0F766E] dark:text-teal-400 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" /> Applied
+                  </Button>
+                );
+              }
+
+              // WorkNext Recruiter jobs: Show current status from pipeline
+              const st = userApplication?.status || 'applied';
+              if (st === 'under_review') {
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center min-w-[104px] h-9 px-3 text-xs whitespace-nowrap shrink-0"
+                  >
+                    <Clock className="w-3.5 h-3.5 mr-1 shrink-0 text-amber-600" /> Under Review
+                  </Button>
+                );
+              }
+              if (st === 'shortlisted') {
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center min-w-[104px] h-9 px-3 text-xs whitespace-nowrap shrink-0 font-medium"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1 shrink-0 text-purple-600" /> Shortlisted
+                  </Button>
+                );
+              }
+              if (st === 'selected') {
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center min-w-[104px] h-9 px-3 text-xs whitespace-nowrap shrink-0 font-bold"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0 text-emerald-600" /> Selected
+                  </Button>
+                );
+              }
+              if (st === 'rejected') {
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="text-stone-600 dark:text-stone-400 border-stone-300 dark:border-stone-700 bg-stone-100 dark:bg-stone-900 flex items-center justify-center min-w-[104px] h-9 px-3 text-xs whitespace-nowrap shrink-0"
+                  >
+                    <XCircle className="w-3.5 h-3.5 mr-1 shrink-0 text-stone-500" /> Rejected
+                  </Button>
+                );
+              }
+
+              return (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="text-[#0F766E] dark:text-teal-400 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" /> Applied
+                </Button>
+              );
+            })()
           ) : isExternal && job.applyUrl ? (
-            <a
-              href={job.applyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                // Strictly opens external application URL only.
-                // Do NOT mark as Applied; do NOT fake or assume submission.
+                applyForJob(job.id, job);
               }}
-              className="inline-flex shrink-0"
+              className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center justify-center gap-1.5 min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Button
-                variant="primary"
-                size="sm"
-                className="bg-[#0F766E] hover:bg-[#0D655E] flex items-center justify-center gap-1.5 min-w-[104px] h-9 px-3.5 text-xs whitespace-nowrap shrink-0"
-              >
-                Apply Now <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-              </Button>
-            </a>
+              Apply Now <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            </Button>
           ) : (
             <Button
               variant="primary"

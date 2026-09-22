@@ -103,3 +103,36 @@ CREATE TRIGGER set_mentors_updated_at
   BEFORE UPDATE ON public.mentors
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_mentors_updated_at();
+
+-- 6. Candidates table for WorkNext Recruiter Pipeline
+CREATE TABLE IF NOT EXISTS public.candidates (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  location TEXT,
+  experience_years INT DEFAULT 0,
+  match_score INT DEFAULT 0,
+  skills TEXT[] DEFAULT '{}',
+  email TEXT,
+  phone TEXT,
+  bio TEXT,
+  status TEXT NOT NULL DEFAULT 'applied' CHECK (status IN ('applied', 'under_review', 'shortlisted', 'selected', 'rejected', 'screening', 'interview', 'offer', 'archived')),
+  applied_job_title TEXT NOT NULL,
+  applied_job_id TEXT,
+  company TEXT,
+  applied_date TEXT,
+  notes TEXT DEFAULT '',
+  rating NUMERIC(3,1),
+  source TEXT DEFAULT 'WorkNext Recruiter',
+  recruiter_id TEXT,
+  recruiter_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_candidates_status ON public.candidates(status);
+CREATE INDEX IF NOT EXISTS idx_candidates_job_id ON public.candidates(applied_job_id);
+CREATE INDEX IF NOT EXISTS idx_candidates_recruiter ON public.candidates(recruiter_id);
+CREATE INDEX IF NOT EXISTS idx_candidates_email ON public.candidates(email);
+

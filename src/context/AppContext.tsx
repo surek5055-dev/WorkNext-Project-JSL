@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { ThemeMode, Language, FontSize, UserProfile, UserRole, AdminUser, Job, NotificationItem, ResumeAnalysisData } from '../types';
-import { mockCurrentUser, mockJobs, mockNotifications } from '../data/mockData';
+import { ThemeMode, Language, FontSize, UserProfile, UserRole, AdminUser, Job, NotificationItem, ResumeAnalysisData, UserApplication } from '../types';
+import { emptyUserProfile, mockCurrentUser, mockJobs, mockNotifications } from '../data/mockData';
 
 interface AppContextType {
   theme: ThemeMode;
@@ -19,7 +19,7 @@ interface AppContextType {
   
   isLoggedIn: boolean;
   login: (email?: string, name?: string, id?: string, role?: UserRole, token?: string) => void;
-  logout: () => void;
+  logout: (redirectUrl?: string) => void;
   
   adminUser: AdminUser | null;
   isAdminLoggedIn: boolean;
@@ -37,9 +37,12 @@ interface AppContextType {
   deleteResume: () => void;
   
   jobs: Job[];
-  addJob: (job: Job) => void;
+  addJob: (job: Job) => Promise<{ success: boolean; error?: string }>;
   savedJobIds: string[];
   appliedJobIds: string[];
+  applications: UserApplication[];
+  getApplication: (jobId: string) => UserApplication | undefined;
+  refreshApplications: () => Promise<void>;
   toggleSaveJob: (jobId: string) => void;
   applyForJob: (jobId: string, jobData?: Job) => Promise<{ success: boolean; error?: string }> | void;
   
@@ -189,73 +192,147 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [fontSize, setFontSize] = useState<FontSize>('normal');
   const [highContrast, setHighContrast] = useState<boolean>(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('worknext_is_logged_in') === 'true';
+    try {
+      if (typeof window !== 'undefined') {
+        // Clear any old lingering localStorage auth keys to avoid demo user leakage across sessions
+        if (window.localStorage) {
+          localStorage.removeItem('worknext_is_logged_in');
+          localStorage.removeItem('worknext_user_profile');
+          localStorage.removeItem('interviewiq_is_logged_in');
+          localStorage.removeItem('interviewiq_user_profile');
+        }
+        if (window.sessionStorage) {
+          const sessionLoggedIn =
+            sessionStorage.getItem('interviewiq_is_logged_in') === 'true' ||
+            sessionStorage.getItem('worknext_is_logged_in') === 'true';
+          return sessionLoggedIn;
+        }
+      }
+    } catch (e) {
+      console.warn('Session storage read error', e);
+    }
+    return false; // A fresh browser session always starts logged out
   });
   
   const [user, setUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('worknext_user_profile');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Clean out any legacy mock data or unverified/generated readiness scores (like 88 or 94)
-        if (
-          parsed.name === 'Alex Morgan' ||
-          parsed.location === 'Chicago, IL' ||
-          parsed.title === 'Full Stack Engineer & AI Specialist' ||
-          parsed.readinessScore === 88 ||
-          parsed.readinessScore === 94 ||
-          (!parsed.hasAnalyzedResume && parsed.readinessScore > 0)
-        ) {
-          parsed.readinessScore = 0;
-          if (parsed.name === 'Alex Morgan') {
-            localStorage.removeItem('worknext_user_profile');
-            return mockCurrentUser;
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const sessionLoggedIn =
+          sessionStorage.getItem('interviewiq_is_logged_in') === 'true' ||
+          sessionStorage.getItem('worknext_is_logged_in') === 'true';
+
+        if (sessionLoggedIn) {
+          const savedSession =
+            sessionStorage.getItem('interviewiq_session_user') ||
+            sessionStorage.getItem('worknext_session_user');
+          if (savedSession) {
+            const parsed = JSON.parse(savedSession);
+            // Ensure no hardcoded demo account is ever auto-displayed
+            if (parsed && parsed.email && parsed.name !== 'Alex Morgan') {
+              return {
+                ...emptyUserProfile,
+                ...parsed,
+              };
+            }
           }
         }
-        // Ensure default properties exist
-        return {
-          ...mockCurrentUser,
-          ...parsed
-        };
-      } catch (e) {
-        console.error('Failed to parse saved user profile', e);
       }
+    } catch (e) {
+      console.warn('Failed to parse session user profile', e);
     }
-    return mockCurrentUser;
+    // Never auto-load or hardcode demo user
+    return emptyUserProfile;
   });
 
-  // Keep localStorage in sync with user state
+  // Keep sessionStorage in sync with user state during active session
   useEffect(() => {
     try {
-      localStorage.setItem('worknext_user_profile', JSON.stringify(user));
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        if (isLoggedIn && user.email) {
+          sessionStorage.setItem('interviewiq_session_user', JSON.stringify(user));
+          sessionStorage.setItem('worknext_session_user', JSON.stringify(user));
+        } else if (!isLoggedIn) {
+          sessionStorage.removeItem('interviewiq_session_user');
+          sessionStorage.removeItem('worknext_session_user');
+        }
+      }
     } catch (e) {
-      console.error('Failed to save user profile to localStorage', e);
+      console.error('Failed to sync session user state', e);
     }
-  }, [user]);
+  }, [user, isLoggedIn]);
 
   const login = (email?: string, name?: string, id?: string, role?: UserRole, token?: string) => {
     setIsLoggedIn(true);
-    localStorage.setItem('worknext_is_logged_in', 'true');
-    if (token) {
-      localStorage.setItem('worknext_supabase_token', token);
+    const cleanEmail = email ? email.trim() : '';
+    const cleanName = name ? name.trim() : (cleanEmail ? cleanEmail.split('@')[0] : '');
+    const cleanId = id || ('usr_' + Date.now());
+    const cleanRole = role || 'jobseeker';
+
+    const updatedUser: UserProfile = {
+      ...emptyUserProfile,
+      id: cleanId,
+      name: cleanName,
+      email: cleanEmail,
+      role: cleanRole,
+      supabaseToken: token || undefined,
+    };
+
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.setItem('interviewiq_is_logged_in', 'true');
+        sessionStorage.setItem('worknext_is_logged_in', 'true');
+        sessionStorage.setItem('interviewiq_session_user', JSON.stringify(updatedUser));
+        sessionStorage.setItem('worknext_session_user', JSON.stringify(updatedUser));
+        if (token) {
+          sessionStorage.setItem('interviewiq_session_token', token);
+          sessionStorage.setItem('worknext_session_token', token);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to store session state on login', e);
     }
-    setUser(prev => {
-      const updated: UserProfile = {
-        ...prev,
-        id: id || prev.id || ('user_' + Date.now()),
-        name: name ? name.trim() : (prev.name || (email ? email.split('@')[0] : '')),
-        email: email ? email.trim() : (prev.email || ''),
-        role: role || prev.role || 'jobseeker',
-        supabaseToken: token || prev.supabaseToken,
-      };
-      return updated;
-    });
+
+    setUser(updatedUser);
   };
 
-  const logout = () => {
+  const logout = (redirectUrl: string = '/login') => {
     setIsLoggedIn(false);
-    localStorage.setItem('worknext_is_logged_in', 'false');
-    localStorage.removeItem('worknext_supabase_token');
+    setUser(emptyUserProfile);
+    setAppliedJobIds([]);
+    setSavedJobIds([]);
+
+    try {
+      if (typeof window !== 'undefined') {
+        if (window.sessionStorage) {
+          sessionStorage.removeItem('interviewiq_is_logged_in');
+          sessionStorage.removeItem('worknext_is_logged_in');
+          sessionStorage.removeItem('interviewiq_session_user');
+          sessionStorage.removeItem('worknext_session_user');
+          sessionStorage.removeItem('interviewiq_session_token');
+          sessionStorage.removeItem('worknext_session_token');
+          sessionStorage.clear();
+        }
+        if (window.localStorage) {
+          localStorage.removeItem('interviewiq_is_logged_in');
+          localStorage.removeItem('worknext_is_logged_in');
+          localStorage.removeItem('interviewiq_user_profile');
+          localStorage.removeItem('worknext_user_profile');
+          localStorage.removeItem('worknext_supabase_token');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to clear session state on logout', e);
+    }
+
+    // Invalidate server session/cookies if any
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+
+    // Redirect to login page
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname !== redirectUrl) {
+        window.location.assign(redirectUrl);
+      }
+    }
   };
 
   // Admin authentication state & persistence
@@ -459,11 +536,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     fetchBackendJobs();
   }, []);
 
-  const addJob = async (job: Job) => {
+  const addJob = async (job: Job): Promise<{ success: boolean; error?: string }> => {
     // Enforce role-based access: only recruiters, employers, or admins can post openings
     if (user.role !== 'recruiter' && (user.role as string) !== 'employer' && user.role !== 'admin' && !isAdminLoggedIn) {
       console.warn('Unauthorized: Only recruiter or employer accounts can post job openings.');
-      return;
+      return { success: false, error: 'Unauthorized: Only recruiter or employer accounts can post job openings.' };
     }
     const jobWithRecruiter: Job = {
       ...job,
@@ -471,9 +548,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recruiterId: job.recruiterId || user.id || '',
       recruiterEmail: job.recruiterEmail || user.email || '',
     };
-    setJobs(prev => [jobWithRecruiter, ...prev]);
     try {
-      await fetch('/api/jobs', {
+      const res = await fetch('/api/jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -483,17 +559,195 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         },
         body: JSON.stringify(jobWithRecruiter),
       });
-    } catch (err) {
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Failed to post job opening' };
+      }
+      setJobs(prev => [data.job || jobWithRecruiter, ...prev]);
+      return { success: true };
+    } catch (err: any) {
       console.error('Failed to sync job with backend:', err);
+      return { success: false, error: err.message || 'Network error while publishing job opening' };
     }
   };
-  const [savedJobIds, setSavedJobIds] = useState<string[]>(() => user.savedJobIds || []);
+  const getAppliedIdsForUser = (userId: string, initialList?: string[]): string[] => {
+    const set = new Set<string>(initialList || []);
+    if (!userId) return Array.from(set);
+    try {
+      // 1. Check user-specific list
+      const saved = localStorage.getItem(`worknext_applied_${userId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(id => set.add(id));
+        }
+      }
+      // 2. Check structured user-job map
+      const mapRaw = localStorage.getItem('worknext_user_applied_jobs_map');
+      if (mapRaw) {
+        const map = JSON.parse(mapRaw);
+        if (map && map[userId] && typeof map[userId] === 'object') {
+          Object.keys(map[userId]).forEach(id => set.add(id));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading applied jobs for user', e);
+    }
+    return Array.from(set);
+  };
+
+  const getStoredNotificationsForUser = (userId?: string): NotificationItem[] => {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return [];
+      const cleanUserId = userId ? String(userId).trim() : '';
+      if (cleanUserId) {
+        const stored = localStorage.getItem(`worknext_notifications_${cleanUserId}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+        const mapRaw = localStorage.getItem('worknext_user_notifications_map');
+        if (mapRaw) {
+          const map = JSON.parse(mapRaw);
+          if (map && map[cleanUserId] && Array.isArray(map[cleanUserId]) && map[cleanUserId].length > 0) {
+            return map[cleanUserId];
+          }
+        }
+      }
+      const guestStored = localStorage.getItem('worknext_notifications_guest');
+      if (guestStored) {
+        const parsedGuest = JSON.parse(guestStored);
+        if (Array.isArray(parsedGuest) && parsedGuest.length > 0) return parsedGuest;
+      }
+    } catch (e) {
+      console.warn('Error reading notifications for user', e);
+    }
+    return [];
+  };
+
+  const persistNotificationsForUser = (userId?: string, items: NotificationItem[] = []) => {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      const cleanUserId = userId ? String(userId).trim() : '';
+      if (cleanUserId) {
+        localStorage.setItem(`worknext_notifications_${cleanUserId}`, JSON.stringify(items));
+        const mapRaw = localStorage.getItem('worknext_user_notifications_map');
+        const map = mapRaw ? JSON.parse(mapRaw) : {};
+        map[cleanUserId] = items;
+        localStorage.setItem('worknext_user_notifications_map', JSON.stringify(map));
+      } else {
+        localStorage.setItem('worknext_notifications_guest', JSON.stringify(items));
+      }
+    } catch (e) {
+      console.warn('Failed to persist notifications locally', e);
+    }
+  };
+
+  const [savedJobIds, setSavedJobIds] = useState<string[]>(() => (isLoggedIn ? user.savedJobIds || [] : []));
   const [appliedJobIds, setAppliedJobIds] = useState<string[]>(() => {
-    const initial = user.appliedJobIds || [];
-    // Only WorkNext recruiter applications are tracked here; external jobs without API confirmation are never assumed applied
-    return initial.filter(id => !id.startsWith('adzuna_') && !id.startsWith('linkedin_'));
+    if (!isLoggedIn || !user.id) return [];
+    return getAppliedIdsForUser(user.id, user.appliedJobIds);
   });
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [applications, setApplications] = useState<UserApplication[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    return getStoredNotificationsForUser(isLoggedIn ? user.id : undefined);
+  });
+
+  const getApplication = (jobId: string): UserApplication | undefined => {
+    return applications.find(a => a.jobId === jobId);
+  };
+
+  const refreshApplications = async () => {
+    const currentUserId = user.id || 'guest';
+    const userEmail = user.email || '';
+    if (!currentUserId && !userEmail) return;
+
+    // Fetch real application records from database
+    try {
+      const res = await fetch(`/api/user/applications?userId=${encodeURIComponent(currentUserId)}&email=${encodeURIComponent(userEmail)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.applications)) {
+          setApplications(data.applications);
+          const syncedIds = data.applications.map((a: UserApplication) => a.jobId).filter(Boolean);
+          if (syncedIds.length > 0) {
+            setAppliedJobIds(prev => Array.from(new Set([...prev, ...syncedIds])));
+          }
+        }
+      }
+    } catch (e) {}
+
+    // Fetch synced notifications from database (picks up recruiter status changes!)
+    try {
+      const notifRes = await fetch(`/api/user/notifications?userId=${encodeURIComponent(currentUserId)}&email=${encodeURIComponent(userEmail)}`);
+      if (notifRes.ok) {
+        const notifData = await notifRes.json();
+        if (notifData.success && Array.isArray(notifData.notifications) && notifData.notifications.length > 0) {
+          setNotifications(prev => {
+            const map = new Map<string, NotificationItem>();
+            notifData.notifications.forEach((n: NotificationItem) => map.set(n.id, n));
+            prev.forEach(p => {
+              if (!map.has(p.id)) map.set(p.id, p);
+            });
+            const combined = Array.from(map.values());
+            persistNotificationsForUser(currentUserId, combined);
+            return combined;
+          });
+        }
+      }
+    } catch (e) {}
+  };
+
+  // Synchronize applied jobs and notifications whenever active user identity changes (user ID scoping)
+  useEffect(() => {
+    if (!isLoggedIn || !user.id) {
+      setAppliedJobIds([]);
+      const guestNotifs = getStoredNotificationsForUser();
+      setNotifications(guestNotifs);
+      return;
+    }
+    const userId = user.id;
+    const loaded = getAppliedIdsForUser(userId, user.appliedJobIds);
+    setAppliedJobIds(loaded);
+
+    // 1. Load user notifications and merge any guest notifications created prior to login
+    const localNotifs = getStoredNotificationsForUser(userId);
+    const guestStored = localStorage.getItem('worknext_notifications_guest');
+    let merged = [...localNotifs];
+    if (guestStored) {
+      try {
+        const guestItems: NotificationItem[] = JSON.parse(guestStored);
+        if (Array.isArray(guestItems)) {
+          guestItems.forEach(item => {
+            if (!merged.some(m => m.id === item.id)) {
+              merged.push(item);
+            }
+          });
+          localStorage.removeItem('worknext_notifications_guest');
+        }
+      } catch (e) {}
+    }
+    setNotifications(merged);
+    persistNotificationsForUser(userId, merged);
+
+    // Initial fetch of user applications and notifications
+    refreshApplications();
+
+    // Set up real-time polling to detect recruiter application status changes & notifications
+    const pollInterval = setInterval(() => {
+      refreshApplications();
+    }, 6000);
+
+    const onWindowFocus = () => {
+      refreshApplications();
+    };
+    window.addEventListener('focus', onWindowFocus);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, [user.id, user.email, isLoggedIn]);
   
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [globalSearchOpen, setGlobalSearchOpen] = useState<boolean>(false);
@@ -561,28 +815,124 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       (typeof jobId === 'string' && (jobId.startsWith('adzuna_') || jobId.startsWith('linkedin_'))) ||
       (Boolean(job?.applyUrl) && job?.source !== 'worknext');
 
-    // For LinkedIn/Adzuna external jobs:
-    // Before application: show Apply Now.
-    // Clicking Apply Now must only open the external application URL.
-    // Do NOT mark the job as Applied when the link opens.
-    // Do NOT mark it Applied merely because the user returns to WorkNext.
-    // Mark Applied only when there is a real confirmation that the external application
-    // was successfully submitted through a supported API/integration.
-    // If no external submission confirmation is available, keep the status as Apply Now.
-    // Never fake or assume an application was submitted.
-    if (isExternal && !job?.externalConfirmedSubmission) {
-      if (job?.applyUrl) {
+    const currentUserId = user.id || 'usr_init';
+
+    // Helper to store applied status by user ID + job ID
+    const persistUserJobApplication = (uId: string, jId: string, jObj?: Job) => {
+      try {
+        localStorage.setItem(`worknext_app_${uId}_${jId}`, 'true');
+
+        const currentList = getAppliedIdsForUser(uId, appliedJobIds);
+        if (!currentList.includes(jId)) {
+          const nextList = [...currentList, jId];
+          localStorage.setItem(`worknext_applied_${uId}`, JSON.stringify(nextList));
+        }
+
+        const mapRaw = localStorage.getItem('worknext_user_applied_jobs_map');
+        const map = mapRaw ? JSON.parse(mapRaw) : {};
+        if (!map[uId]) map[uId] = {};
+        map[uId][jId] = {
+          appliedAt: new Date().toISOString(),
+          source: jObj?.source || 'External',
+          title: jObj?.title || '',
+        };
+        localStorage.setItem('worknext_user_applied_jobs_map', JSON.stringify(map));
+      } catch (e) {
+        console.warn('Could not persist applied job locally', e);
+      }
+    };
+
+    // For Adzuna / LinkedIn external jobs:
+    // When user clicks Apply Now, open external application URL in new tab.
+    // Immediately after click, save job as Applied for current user (user ID + job ID).
+    // Change button from Apply Now to Applied.
+    // When user comes back or refreshes, keep showing Applied for that job.
+    // Do not require confirmation popup; do not wait for external confirmation.
+    if (isExternal) {
+      if (job?.applyUrl && typeof window !== 'undefined') {
         window.open(job.applyUrl, '_blank', 'noopener,noreferrer');
       }
-      return { success: true };
-    }
 
-    // Keep WorkNext Recruiter applications separate; those can use WorkNext's own application status
-    try {
-      const res = await fetch('/api/recruiter/candidates', {
+      // Store applied status by user ID + job ID
+      persistUserJobApplication(currentUserId, jobId, job);
+
+      // Immediately update state so UI changes from Apply Now to Applied
+      if (!appliedJobIds.includes(jobId)) {
+        const next = [...appliedJobIds, jobId];
+        setAppliedJobIds(next);
+        setUser(u => ({ ...u, appliedJobIds: next }));
+      }
+
+      // Record in applications state with status strictly 'applied'
+      const extAppRecord: UserApplication = {
+        id: `ext_${Date.now()}`,
+        jobId,
+        jobTitle: (job?.title || 'Open Position').trim(),
+        company: (job?.company || 'Company').trim(),
+        location: job?.location || '',
+        source: job?.source || 'Adzuna',
+        status: 'applied', // Strictly applied for external
+        appliedDate: 'Just now',
+        isExternal: true,
+      };
+      setApplications(prev => [extAppRecord, ...prev.filter(a => a.jobId !== jobId)]);
+
+      // Create notification: "You applied for [Job Title] at [Company]."
+      const jobTitle = (job?.title || 'Open Position').trim();
+      const company = (job?.company || 'Company').trim();
+      const newNotif: NotificationItem = {
+        id: `notif_ext_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        title: 'Application Recorded',
+        message: `You applied for ${jobTitle} at ${company}.`,
+        timestamp: 'Just now',
+        type: 'application',
+        read: false,
+        link: '/notifications'
+      };
+
+      setNotifications(prev => {
+        const updated = [newNotif, ...prev.filter(n => n.id !== newNotif.id)];
+        persistNotificationsForUser(currentUserId, updated);
+        return updated;
+      });
+
+      // Sync notification to backend store
+      fetch('/api/user/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: currentUserId,
+          notification: newNotif,
+        }),
+      }).catch(err => console.warn('Sync external notification note:', err));
+
+      // Sync asynchronously to backend user applied tracking
+      fetch('/api/user/applied-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          jobId,
+          jobTitle: job?.title || '',
+          company: job?.company || '',
+          source: job?.source || 'Adzuna',
+        }),
+      }).catch(err => console.warn('Sync external applied job note:', err));
+
+      return { success: true };
+    }
+
+    // Keep WorkNext Recruiter applications separate; those submit directly to recruiter
+    try {
+      const res = await fetch('/api/recruiter/candidates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUserId,
+          'x-user-email': user.email || '',
+        },
+        body: JSON.stringify({
+          userId: currentUserId,
           name: user.name || user.email || 'Job Applicant',
           email: user.email || '',
           phone: user.phone || '',
@@ -595,6 +945,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           status: 'applied',
           appliedJobTitle: job?.title || 'Open Position',
           appliedJobId: jobId,
+          company: job?.company || 'WorkNext Recruiter Partner',
           source: 'WorkNext Recruiter',
           recruiterId: job?.recruiterId || '',
           recruiterEmail: job?.recruiterEmail || '',
@@ -606,6 +957,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { success: false, error: data.error || 'Failed to submit application.' };
       }
 
+      // Store applied status by user ID + job ID
+      persistUserJobApplication(currentUserId, jobId, job);
+
+      // Record in applications state with initial status 'applied'
+      const recruiterAppRecord: UserApplication = {
+        id: data.candidate?.id || `cand_${Date.now()}`,
+        jobId,
+        jobTitle: job?.title || 'Open Position',
+        company: job?.company || 'WorkNext Recruiter Partner',
+        location: job?.location || '',
+        source: 'WorkNext Recruiter',
+        status: 'applied',
+        appliedDate: 'Just now',
+        recruiterId: job?.recruiterId || '',
+        isExternal: false,
+      };
+      setApplications(prev => [recruiterAppRecord, ...prev.filter(a => a.jobId !== jobId)]);
+
       if (!appliedJobIds.includes(jobId)) {
         const next = [...appliedJobIds, jobId];
         setAppliedJobIds(next);
@@ -614,14 +983,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (job) {
           const newNotif: NotificationItem = {
             id: 'not_' + Date.now(),
-            title: 'WorkNext Application Submitted!',
-            message: `Your application for ${job.title} at ${job.company} was submitted directly to the recruiter.`,
+            title: 'Application Submitted',
+            message: `You applied for ${job.title} at ${job.company}.`,
             timestamp: 'Just now',
             type: 'application',
             read: false,
             link: '/dashboard'
           };
-          setNotifications(prev => [newNotif, ...prev]);
+          setNotifications(prev => {
+            const updated = [newNotif, ...prev];
+            persistNotificationsForUser(currentUserId, updated);
+            return updated;
+          });
+
+          // Sync notification to backend
+          fetch('/api/user/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUserId,
+              notification: newNotif,
+            }),
+          }).catch(() => {});
         }
       }
 
@@ -633,11 +1016,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const markNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setNotifications(prev => {
+      const updated = prev.map(n => (n.id === id ? { ...n, read: true } : n));
+      persistNotificationsForUser(user.id, updated);
+      return updated;
+    });
+    if (user.id) {
+      fetch('/api/user/notifications/read', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, notificationId: id }),
+      }).catch(() => {});
+    }
   };
 
   const clearAllNotifications = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, read: true }));
+      persistNotificationsForUser(user.id, updated);
+      return updated;
+    });
+    if (user.id) {
+      fetch('/api/user/notifications/read', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, all: true }),
+      }).catch(() => {});
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -679,6 +1084,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addJob,
         savedJobIds,
         appliedJobIds,
+        applications,
+        getApplication,
+        refreshApplications,
         toggleSaveJob,
         applyForJob,
         notifications,
