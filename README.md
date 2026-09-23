@@ -1,28 +1,31 @@
-WorkNext – Empowering India’s Workforce
+# WorkNext – Empowering India’s Workforce
 
-WorkNext is an AI-powered workforce platform that helps students and job seekers manage resumes, skills, careers, jobs, and applications in one place.
+WorkNext is an AI-powered workforce platform that helps students and job seekers manage **resumes, skills, careers, jobs, and applications** in one place.
 
-🚀 Key Features
-Authentication & Profiles – Secure login and professional profiles
-Resume Builder – Create, upload, customize, and export resumes
-ATS Compatibility – Analyze resumes for ATS readiness
-Skill Gap Analysis – Identify skills required for target roles
-Career Recommendations – Get personalized career guidance
-Job & Internship Finder – Discover relevant opportunities
-Application Tracking – Manage and track applications
-AI Career Mentor – Interactive career guidance
-AI Mock Interview – Practice interviews with AI feedback
-Recruiter Dashboard – Post jobs and manage candidates
-Admin Dashboard – Manage users, recruiters, and job postings
-Notifications – Receive important application and platform updates
-Responsive & Accessible UI – Optimized for different devices and users
-🧠 AI-Powered Features
-Resume Analysis – ATS compatibility, missing skills, and improvement suggestions
-Skill Gap Analysis – Compare current skills with target-role requirements
-Career Recommendations – Personalized career-path suggestions
-AI Career Mentor – Career-focused conversational assistance
-AI Mock Interviews – Interview practice and feedback
-Smart Job Matching – Match users with relevant opportunities
+## 🚀 Key Features
+
+* **Authentication & Profiles** – Secure login and professional profiles
+* **Resume Builder** – Create, upload, customize, and export resumes
+* **ATS Compatibility** – Analyze resumes for ATS readiness
+* **Skill Gap Analysis** – Identify skills required for target roles
+* **Career Recommendations** – Get personalized career guidance
+* **Job & Internship Finder** – Discover relevant opportunities
+* **Application Tracking** – Manage and track applications
+* **AI Career Mentor** – Interactive career guidance
+* **AI Mock Interview** – Practice interviews with AI feedback
+* **Recruiter Dashboard** – Post jobs and manage candidates
+* **Admin Dashboard** – Manage users, recruiters, and job postings
+* **Notifications** – Receive important application and platform updates
+* **Responsive & Accessible UI** – Optimized for different devices and users
+
+## 🧠 AI-Powered Features
+
+* **Resume Analysis** – ATS compatibility, skill identification, and improvement suggestions
+* **Skill Gap Analysis** – Compare current skills with target-role requirements
+* **Career Recommendations** – Personalized career-path suggestions
+* **AI Career Mentor** – Career-focused conversational assistance
+* **AI Mock Interviews** – Interview practice with AI-powered feedback
+* **Smart Job Matching** – Connect users with relevant opportunities
 
 ## 🛠️ Technology Stack
 
