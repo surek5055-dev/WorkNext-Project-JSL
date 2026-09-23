@@ -1,60 +1,28 @@
-# WorkNext – Empowering India’s Workforce
+WorkNext – Empowering India’s Workforce
 
-WorkNext is an AI-powered workforce platform designed to help students and job seekers build better careers by connecting **resumes, skills, jobs, career guidance, and recruiters** in one platform.
+WorkNext is an AI-powered workforce platform that helps students and job seekers manage resumes, skills, careers, jobs, and applications in one place.
 
-The platform focuses on making the job-search process simpler, more accessible, and more personalized for users.
-
-## 🚀 Key Features
-
-* **User Authentication** – Secure signup and login using Supabase
-* **Profile Management** – Create and manage professional profiles
-* **Resume Builder** – Build and customize resumes directly on the platform
-* **Resume Upload & Export** – Upload existing resumes and export resumes created on WorkNext
-* **ATS Compatibility** – Analyze resumes for ATS compatibility
-* **Skill Gap Analysis** – Identify skills that may be missing for a target career
-* **Career Recommendations** – Get career suggestions based on profile and skills
-* **Job Finder** – Discover relevant job and internship opportunities
-* **Application Tracking** – Track submitted job and internship applications
-* **AI Career Mentor** – Get career-related guidance through an AI chatbot
-* **AI Mock Interview** – Practice interview questions and receive feedback
-* **Recruiter Dashboard** – Recruiters can post opportunities and manage candidates
-* **Notifications** – Receive updates about applications, jobs, and platform activities
-* **Admin Dashboard** – Admins can monitor platform activity and manage users/recruiters
-* **Responsive UI** – Designed for desktop, tablet, and mobile screens
-* **Accessibility Support** – Focus on readable typography, contrast, and easy navigation
-
-## 🧠 AI Features
-
-WorkNext is designed to integrate AI into different stages of the career journey:
-
-### AI Resume Analyzer
-
-Analyzes a user's resume and can provide:
-
-* ATS compatibility analysis
-* Missing skills
-* Resume improvement suggestions
-* Grammar and content suggestions
-
-### Skill Gap Analyzer
-
-Compares a user's current skills with the skills required for a selected career or job role.
-
-### Career Recommendation
-
-Provides career-role suggestions based on the user's profile, skills, interests, and resume information.
-
-### AI Career Mentor
-
-A conversational assistant designed to provide career-related guidance and answer user questions.
-
-### AI Mock Interview
-
-Allows users to practice interview questions and receive feedback on their responses.
-
-### Smart Job Matching
-
-Helps connect users with job opportunities based on their profile, skills, resume, and preferences.
+🚀 Key Features
+Authentication & Profiles – Secure login and professional profiles
+Resume Builder – Create, upload, customize, and export resumes
+ATS Compatibility – Analyze resumes for ATS readiness
+Skill Gap Analysis – Identify skills required for target roles
+Career Recommendations – Get personalized career guidance
+Job & Internship Finder – Discover relevant opportunities
+Application Tracking – Manage and track applications
+AI Career Mentor – Interactive career guidance
+AI Mock Interview – Practice interviews with AI feedback
+Recruiter Dashboard – Post jobs and manage candidates
+Admin Dashboard – Manage users, recruiters, and job postings
+Notifications – Receive important application and platform updates
+Responsive & Accessible UI – Optimized for different devices and users
+🧠 AI-Powered Features
+Resume Analysis – ATS compatibility, missing skills, and improvement suggestions
+Skill Gap Analysis – Compare current skills with target-role requirements
+Career Recommendations – Personalized career-path suggestions
+AI Career Mentor – Career-focused conversational assistance
+AI Mock Interviews – Interview practice and feedback
+Smart Job Matching – Match users with relevant opportunities
 
 ## 🛠️ Technology Stack
 
